@@ -115,7 +115,7 @@ def typeset(req: TypesetRequest):
 
     try:
         # Import and run the engine
-        from typeset_engine import BookBuilder, PAGE_W, PAGE_H, PAPER_FACTOR
+        from typeset_engine import BookBuilder
 
         # Apply custom config by patching module-level constants
         import typeset_engine as engine
