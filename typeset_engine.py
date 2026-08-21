@@ -439,11 +439,12 @@ class GenericBookBuilder:
     Uses parse_manuscript_generic for structure detection."""
     
     def __init__(self, md_path, output_path, title='Untitled', author='Unknown',
-                 publisher='D&H Publishing International',
+                 subtitle='', publisher='D&H Publishing International',
                  publisher_url='www.dandhpublishing.com'):
         self.md_path = md_path
         self.output_path = output_path
         self.title = title
+        self.subtitle = subtitle
         self.author = author
         self.publisher = publisher
         self.publisher_url = publisher_url
@@ -469,6 +470,12 @@ class GenericBookBuilder:
         else:
             r._ctxt(y, self.title, 'GarB', 42, C_BODY)
         y -= 40
+        
+        # Subtitle (if provided)
+        if self.subtitle:
+            r._ctxt(y, self.subtitle, 'GarI', 16, C_BROWN)
+            y -= 30
+        
         r._divider(y, 'star'); y -= 35
         r._ctxt(y, self.author, 'GarI', 14, C_DARK); y -= 35
         r._divider(y, 'star'); y -= 50
@@ -545,7 +552,11 @@ class GenericBookBuilder:
                 r._finish_page()
             
             elif t == 'chapter':
-                r.toc_entries.append((blk['title'], r.page_num + 1, 1 if any(
+                # Build TOC entry with subtitle if available
+                toc_title = blk['title']
+                if blk.get('subtitle'):
+                    toc_title = f"{blk['title']}: {blk['subtitle']}"
+                r.toc_entries.append((toc_title, r.page_num + 1, 1 if any(
                     b['type'] == 'part' for b in self.blocks[:i]) else 0))
                 r.render_chapter_opener(blk['title'], blk.get('subtitle', ''))
                 
