@@ -349,10 +349,12 @@ def parse_manuscript(filepath):
 # ═══════════════════════════════════════════════════════════════════
 
 class BookRenderer:
-    def __init__(self, output_path):
+    def __init__(self, output_path, title="Untitled", author="Unknown"):
         self.c = canvas.Canvas(output_path, pagesize=(PAGE_W, PAGE_H))
-        self.c.setTitle("From These Streets")
-        self.c.setAuthor("David Oldham")
+        self.book_title = title
+        self.book_author = author
+        self.c.setTitle(title)
+        self.c.setAuthor(author)
         self.page_num = 0
         self.toc_entries = []
         self.suppress_hdr = False
@@ -825,22 +827,24 @@ class BookRenderer:
     def render_title(self):
         self._new_page(suppress=True)
         y = PAGE_H - 2.2*inch
-        self._ctxt(y, 'FROM THESE', 'GarB', 42, C_BODY); y -= 50
-        self._ctxt(y, 'STREETS', 'GarB', 42, C_BODY); y -= 40
+        title_lines = self._wrap(self.book_title, 'GarB', 36, PAGE_W - 2*inch)
+        for tl in title_lines:
+            self._ctxt(y, tl, 'GarB', 36, C_BODY); y -= 44
+        y -= 20
         self._divider(y, 'star'); y -= 30
-        self._ctxt(y, 'Salfordians who Changed the World', 'GarI', 14, C_BROWN); y -= 30
+        self._ctxt(y, self.book_author, 'GarI', 14, C_BROWN); y -= 30
         self._divider(y, 'star'); y -= 50
-        self._ctxt(y, 'David Oldham', 'GarI', 12, C_DARK); y -= 40
+        publisher = getattr(self, 'publisher', 'D&H Publishing International')
         self._ctxt(y, 'published by:', 'Gar', 9, C_DARK); y -= 18
-        self._ctxt(y, 'D&H Publishing International', 'Gar', 11, C_BODY); y -= 35
+        self._ctxt(y, publisher, 'Gar', 11, C_BODY); y -= 35
         self._ornament(y)
         self._finish_page()
     
     def render_copyright(self, lines):
         self._new_page(suppress=True)
         y = PAGE_H - 2.0*inch
-        self._ctxt(y, 'FROM THESE STREETS', 'GarB', 14, C_BODY); y -= 20
-        self._ctxt(y, 'Salfordians who Changed the World', 'GarI', 11, C_BROWN); y -= 30
+        self._ctxt(y, self.book_title, 'GarB', 14, C_BODY); y -= 20
+        self._ctxt(y, self.book_author, 'GarI', 11, C_BROWN); y -= 30
         
         # Join the copyright lines into paragraphs
         paras = join_paragraphs(lines)
@@ -1081,16 +1085,20 @@ class BookRenderer:
 # ═══════════════════════════════════════════════════════════════════
 
 class BookBuilder:
-    def __init__(self, md_path, output_path):
+    def __init__(self, md_path, output_path, title="Untitled", author="Unknown", publisher="D&H Publishing International"):
         self.md_path = md_path
         self.output_path = output_path
+        self.title = title
+        self.author = author
+        self.publisher = publisher
         self.blocks = parse_manuscript(md_path)
         # Image base directory: same folder as the manuscript
         self.image_base_dir = os.path.dirname(os.path.abspath(md_path))
     
     def _render(self, path, toc_entries=None):
-        r = BookRenderer(path)
+        r = BookRenderer(path, title=self.title, author=self.author)
         r.image_base_dir = self.image_base_dir
+        r.publisher = self.publisher
         first_in_ch = True
         
         for i, blk in enumerate(self.blocks):
