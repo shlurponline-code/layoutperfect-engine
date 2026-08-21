@@ -120,7 +120,10 @@ def typeset(req: TypesetRequest):
         engine.BODY_LD = req.leading_pt
         engine.CH_TITLE_SZ = req.chapter_title_size_pt
 
-        builder = BookBuilder(md_path, output_path, title=req.title, author=req.author)
+        if req.template == "portrait":
+            builder = BookBuilder(md_path, output_path, title=req.title, author=req.author)
+        else:
+            builder = GenericBookBuilder(md_path, output_path, title=req.title, author=req.author)
         builder.build()
 
         from pypdf import PdfReader
