@@ -109,7 +109,7 @@ def typeset(req: TypesetRequest):
     output_path = md_path.replace('.md', '_PRINT.pdf')
 
     try:
-        from typeset_engine import BookBuilder
+        from typeset_engine import BookBuilder, GenericBookBuilder
         import typeset_engine as engine
 
         engine.MARGIN_INSIDE = (req.margin_inside_cm / 2.54 + req.gutter_cm / 2.54) * 72
