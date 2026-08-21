@@ -344,17 +344,306 @@ def parse_manuscript(filepath):
     return blocks
 
 
+def parse_manuscript_generic(filepath):
+    """Generic parser for novels, non-fiction, and any standard markdown manuscript.
+    Handles: # Part, # Chapter, ## Subtitle, body text, scene breaks (*** ---),
+    and back matter (Author's Note, Acknowledgements, About, etc.)."""
+    with open(filepath, 'r', encoding='utf-8') as f:
+        raw_lines = f.read().split('\n')
+    
+    paras = join_paragraphs(raw_lines)
+    blocks = []
+    i = 0
+    
+    while i < len(paras):
+        p = paras[i].strip()
+        if not p:
+            i += 1
+            continue
+        
+        # # Heading (Part, Chapter, Prologue, Epilogue, back matter)
+        if p.startswith('# '):
+            title = p[2:].strip()
+            subtitle = ''
+            body = []
+            i += 1
+            
+            # Check for ## subtitle
+            if i < len(paras) and paras[i].strip().startswith('## '):
+                subtitle = paras[i].strip()[3:].strip()
+                i += 1
+            
+            # Collect body until next # heading
+            while i < len(paras):
+                pp = paras[i].strip()
+                if pp.startswith('# '):
+                    break
+                if pp in ('***', '* * *') or (len(pp) >= 3 and all(c == '-' for c in pp)):
+                    body.append({'type': 'scene_break'})
+                    i += 1
+                    continue
+                if IMAGE_PATTERN.match(pp):
+                    body.append({'type': 'image', 'text': pp})
+                    i += 1
+                    continue
+                body.append({'type': 'para', 'text': pp})
+                i += 1
+            
+            # Part headings typically have no body (just a title page)
+            is_part = (title.lower().startswith('part ') and len(body) == 0)
+            
+            blocks.append({
+                'type': 'part' if is_part else 'chapter',
+                'title': title,
+                'subtitle': subtitle,
+                'body': body,
+            })
+            continue
+        
+        # ## Heading without parent #
+        if p.startswith('## '):
+            title = p[3:].strip()
+            body = []
+            i += 1
+            while i < len(paras):
+                pp = paras[i].strip()
+                if pp.startswith('# ') or pp.startswith('## '):
+                    break
+                if pp in ('***', '* * *') or (len(pp) >= 3 and all(c == '-' for c in pp)):
+                    body.append({'type': 'scene_break'})
+                    i += 1
+                    continue
+                if IMAGE_PATTERN.match(pp):
+                    body.append({'type': 'image', 'text': pp})
+                    i += 1
+                    continue
+                body.append({'type': 'para', 'text': pp})
+                i += 1
+            blocks.append({
+                'type': 'chapter', 'title': title,
+                'subtitle': '', 'body': body,
+            })
+            continue
+        
+        i += 1
+    
+    return blocks
+
+
 # ═══════════════════════════════════════════════════════════════════
-# PDF RENDERER
+# GENERIC BOOK BUILDER — works with any manuscript structure
 # ═══════════════════════════════════════════════════════════════════
 
+class GenericBookBuilder:
+    """Builds print-ready PDFs from any markdown manuscript.
+    Uses parse_manuscript_generic for structure detection."""
+    
+    def __init__(self, md_path, output_path, title='Untitled', author='Unknown',
+                 publisher='D&H Publishing International',
+                 publisher_url='www.dandhpublishing.com'):
+        self.md_path = md_path
+        self.output_path = output_path
+        self.title = title
+        self.author = author
+        self.publisher = publisher
+        self.publisher_url = publisher_url
+        self.blocks = parse_manuscript_generic(md_path)
+        self.image_base_dir = os.path.dirname(os.path.abspath(md_path))
+    
+    def _render(self, path, toc_entries=None):
+        r = BookRenderer(path)
+        r.image_base_dir = self.image_base_dir
+        r.header_text = self.title
+        
+        # ── Front matter (generic, driven by title/author) ──
+        # Title page
+        r._new_page(suppress=True)
+        y = PAGE_H - 2.2 * inch
+        # Split long titles across lines
+        title_words = self.title.split()
+        if len(title_words) > 4:
+            mid = len(title_words) // 2
+            r._ctxt(y, ' '.join(title_words[:mid]), 'GarB', 38, C_BODY)
+            y -= 46
+            r._ctxt(y, ' '.join(title_words[mid:]), 'GarB', 38, C_BODY)
+        else:
+            r._ctxt(y, self.title, 'GarB', 42, C_BODY)
+        y -= 40
+        r._divider(y, 'star'); y -= 35
+        r._ctxt(y, self.author, 'GarI', 14, C_DARK); y -= 35
+        r._divider(y, 'star'); y -= 50
+        r._ctxt(y, 'published by:', 'Gar', 9, C_DARK); y -= 18
+        r._ctxt(y, self.publisher, 'Gar', 11, C_BODY); y -= 35
+        r._ornament(y)
+        r._finish_page()
+        
+        # Blank verso
+        r._new_page(suppress=True)
+        r._finish_page()
+        
+        # Copyright page
+        r._new_page(suppress=True)
+        y = PAGE_H - 2.0 * inch
+        r._ctxt(y, self.title, 'GarB', 14, C_BODY); y -= 20
+        r._ctxt(y, self.author, 'GarI', 11, C_BROWN); y -= 30
+        lm = r._lm()
+        for line in [
+            f'First published in 2026 by {self.publisher}.',
+            f'\u00a9 2026 {self.author}. All rights reserved.',
+            '',
+            'No part of this publication may be reproduced, distributed, or transmitted '
+            'in any form or by any means, including photocopying, recording, or other '
+            'electronic or mechanical methods, without the prior written permission of '
+            'the publisher, except in the case of brief quotations embodied in critical '
+            'reviews and certain other non-commercial uses permitted by copyright law.',
+            '',
+            f'{self.publisher_url}',
+        ]:
+            if not line:
+                y -= 8
+                continue
+            wrapped = r._wrap(line, 'Gar', 9.5, r._tw())
+            for wl in wrapped:
+                if y < MARGIN_BOTTOM + 30:
+                    break
+                r.c.setFont('Gar', 9.5)
+                r.c.setFillColor(C_BODY)
+                if line == self.publisher_url:
+                    r.c.drawCentredString(PAGE_W / 2, y, wl)
+                else:
+                    r.c.drawString(lm, y, wl)
+                y -= 13
+            y -= 3
+        y -= 10
+        r._ornament(y)
+        r._finish_page()
+        
+        # TOC placeholder or real TOC
+        if toc_entries:
+            r.render_toc(toc_entries)
+        else:
+            r._ensure_recto()
+            r._ctxt(PAGE_H - MARGIN_TOP - 30, 'Contents', 'GarB', 22, C_BODY)
+            r._finish_page()
+            r._new_page(suppress=True)
+            r._finish_page()
+        
+        # ── Body content ──
+        for i, blk in enumerate(self.blocks):
+            t = blk['type']
+            
+            if t == 'part':
+                # Part title page — centred, recto, no body text
+                r._ensure_recto()
+                r.is_front_matter = False
+                r.toc_entries.append((blk['title'], r.page_num, 0))
+                y = PAGE_H / 2 + 30
+                r._ctxt(y, blk['title'].upper(), 'GarB', 24, C_BODY)
+                if blk.get('subtitle'):
+                    y -= 28
+                    r._ctxt(y, blk['subtitle'], 'GarI', 14, C_BROWN)
+                r._finish_page()
+            
+            elif t == 'chapter':
+                r.toc_entries.append((blk['title'], r.page_num + 1, 1 if any(
+                    b['type'] == 'part' for b in self.blocks[:i]) else 0))
+                r.render_chapter_opener(blk['title'], blk.get('subtitle', ''))
+                
+                # Render body content
+                for item in blk.get('body', []):
+                    if item['type'] == 'para':
+                        r._draw_content(item['text'])
+                    elif item['type'] == 'scene_break':
+                        r._check_page(40)
+                        r.current_y -= 12
+                        r._ctxt(r.current_y, '•   •   •', 'Gar', 10, C_MID)
+                        r.current_y -= 20
+                    elif item['type'] == 'image':
+                        r._draw_content(item['text'])
+                
+                # Chapter end divider if next block is a part or it's the last
+                if i + 1 < len(self.blocks):
+                    nt = self.blocks[i + 1]['type']
+                    if nt == 'part':
+                        r.render_chapter_end()
+                if i == len(self.blocks) - 1:
+                    r.render_chapter_end()
+        
+        # ── Back page ──
+        r._ensure_recto()
+        y = PAGE_H / 2 + 20
+        r._ctxt(y, self.publisher_url, 'GarB', 13, C_BODY); y -= 22
+        r._ctxt(y, self.title, 'GarI', 11, C_DARK); y -= 30
+        r._divider(y, 'star'); y -= 25
+        r._ctxt(y, self.publisher, 'Gar', 10, C_DARK); y -= 18
+        r.c.setFont('Gar', 8.5)
+        r.c.setFillColor(C_GREY)
+        r.c.drawCentredString(PAGE_W / 2, y,
+                             f'\u00a9 2026 {self.author}. All rights reserved.')
+        r._finish_page()
+        
+        r.c.save()
+        self._last_image_log = r.image_log
+        return r.toc_entries
+    
+    def build(self):
+        print(f"Building: {self.title} by {self.author}")
+        print("Pass 1: Collecting page numbers...")
+        tmp = self.output_path.replace('.pdf', '_p1.pdf')
+        toc = self._render(tmp)
+        print(f"  {len(toc)} TOC entries")
+        
+        print("Pass 2: Final render with TOC...")
+        self._render(self.output_path, toc)
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        
+        self._set_trimbox()
+        
+        if self._last_image_log:
+            print(f"\nIMAGES")
+            print(f"------")
+            placed = warnings = errors = 0
+            for fname, page, hint, dpi, status in self._last_image_log:
+                if status == 'OK':
+                    print(f"  {fname:40s} placed p.{page} ({hint}, {dpi} DPI) \u2713")
+                    placed += 1
+                elif status == 'LOW RES':
+                    print(f"  {fname:40s} placed p.{page} ({hint}, {dpi} DPI) \u26a0 LOW RES")
+                    placed += 1; warnings += 1
+                else:
+                    print(f"  {fname:40s} {status} \u2717")
+                    errors += 1
+            print(f"\n  Total: {len(self._last_image_log)}, Placed: {placed}, Warnings: {warnings}, Errors: {errors}")
+        
+        print(f"Done: {self.output_path}")
+        return self.output_path
+    
+    def _set_trimbox(self):
+        from pypdf import PdfReader, PdfWriter
+        from pypdf.generic import ArrayObject, FloatObject, NameObject
+        reader = PdfReader(self.output_path)
+        writer = PdfWriter()
+        for page in reader.pages:
+            page[NameObject('/TrimBox')] = ArrayObject([
+                FloatObject(0), FloatObject(0),
+                FloatObject(PAGE_W), FloatObject(PAGE_H),
+            ])
+            writer.add_page(page)
+        writer.add_metadata({
+            '/Title': self.title,
+            '/Author': self.author,
+            '/Creator': 'Layout Perfect Typesetting Engine',
+            '/Producer': 'ReportLab + pypdf',
+        })
+        with open(self.output_path, 'wb') as f:
+            writer.write(f)
+
 class BookRenderer:
-    def __init__(self, output_path, title="Untitled", author="Unknown"):
+    def __init__(self, output_path):
         self.c = canvas.Canvas(output_path, pagesize=(PAGE_W, PAGE_H))
-        self.book_title = title
-        self.book_author = author
-        self.c.setTitle(title)
-        self.c.setAuthor(author)
+        self.c.setTitle("From These Streets")
+        self.c.setAuthor("David Oldham")
         self.page_num = 0
         self.toc_entries = []
         self.suppress_hdr = False
@@ -363,6 +652,7 @@ class BookRenderer:
         self.output_path = output_path
         self.image_base_dir = ''  # set by BookBuilder
         self.image_log = []  # [(filename, page, size_hint, dpi, status)]
+        self.header_text = ''  # set by builder — used in running header
         
     def _margins(self):
         if self.page_num % 2 == 1:  # Recto: gutter left
@@ -379,7 +669,7 @@ class BookRenderer:
     def _draw_header(self):
         if self.suppress_hdr or self.is_front_matter:
             return
-        txt = 'FROM THESE STREETS \u2013 Salfordians who Changed the World'
+        txt = self.header_text or 'Layout Perfect'
         self.c.setFont('GarI', HDR_SZ)
         self.c.setFillColor(C_GREY)
         self.c.drawCentredString(PAGE_W/2, HEADER_Y, txt)
@@ -827,24 +1117,22 @@ class BookRenderer:
     def render_title(self):
         self._new_page(suppress=True)
         y = PAGE_H - 2.2*inch
-        title_lines = self._wrap(self.book_title, 'GarB', 36, PAGE_W - 2*inch)
-        for tl in title_lines:
-            self._ctxt(y, tl, 'GarB', 36, C_BODY); y -= 44
-        y -= 20
+        self._ctxt(y, 'FROM THESE', 'GarB', 42, C_BODY); y -= 50
+        self._ctxt(y, 'STREETS', 'GarB', 42, C_BODY); y -= 40
         self._divider(y, 'star'); y -= 30
-        self._ctxt(y, self.book_author, 'GarI', 14, C_BROWN); y -= 30
+        self._ctxt(y, 'Salfordians who Changed the World', 'GarI', 14, C_BROWN); y -= 30
         self._divider(y, 'star'); y -= 50
-        publisher = getattr(self, 'publisher', 'D&H Publishing International')
+        self._ctxt(y, 'David Oldham', 'GarI', 12, C_DARK); y -= 40
         self._ctxt(y, 'published by:', 'Gar', 9, C_DARK); y -= 18
-        self._ctxt(y, publisher, 'Gar', 11, C_BODY); y -= 35
+        self._ctxt(y, 'D&H Publishing International', 'Gar', 11, C_BODY); y -= 35
         self._ornament(y)
         self._finish_page()
     
     def render_copyright(self, lines):
         self._new_page(suppress=True)
         y = PAGE_H - 2.0*inch
-        self._ctxt(y, self.book_title, 'GarB', 14, C_BODY); y -= 20
-        self._ctxt(y, self.book_author, 'GarI', 11, C_BROWN); y -= 30
+        self._ctxt(y, 'FROM THESE STREETS', 'GarB', 14, C_BODY); y -= 20
+        self._ctxt(y, 'Salfordians who Changed the World', 'GarI', 11, C_BROWN); y -= 30
         
         # Join the copyright lines into paragraphs
         paras = join_paragraphs(lines)
@@ -1085,20 +1373,17 @@ class BookRenderer:
 # ═══════════════════════════════════════════════════════════════════
 
 class BookBuilder:
-    def __init__(self, md_path, output_path, title="Untitled", author="Unknown", publisher="D&H Publishing International"):
+    def __init__(self, md_path, output_path):
         self.md_path = md_path
         self.output_path = output_path
-        self.title = title
-        self.author = author
-        self.publisher = publisher
         self.blocks = parse_manuscript(md_path)
         # Image base directory: same folder as the manuscript
         self.image_base_dir = os.path.dirname(os.path.abspath(md_path))
     
     def _render(self, path, toc_entries=None):
-        r = BookRenderer(path, title=self.title, author=self.author)
+        r = BookRenderer(path)
         r.image_base_dir = self.image_base_dir
-        r.publisher = self.publisher
+        r.header_text = 'FROM THESE STREETS \u2013 Salfordians who Changed the World'
         first_in_ch = True
         
         for i, blk in enumerate(self.blocks):
@@ -1209,173 +1494,6 @@ class BookBuilder:
         writer.add_metadata({
             '/Title': 'From These Streets \u2014 Salfordians who Changed the World',
             '/Author': 'David Oldham',
-            '/Creator': 'Layout Perfect Typesetting Engine',
-            '/Producer': 'ReportLab + pypdf',
-        })
-        with open(self.output_path, 'wb') as f:
-            writer.write(f)
-
-
-# ═══════════════════════════════════════════════════════════════════
-# GENERIC BOOK BUILDER — novels and standard markdown manuscripts
-# Handles # Parts, ## Chapters, scene breaks (*** and ---), body text
-# ═══════════════════════════════════════════════════════════════════
-
-def parse_generic_manuscript(md_path):
-    """Parse a standard markdown manuscript into blocks.
-    Recognises # Parts, ## Chapters, scene breaks (*** --- * * *),
-    and body paragraphs separated by blank lines.
-    """
-    with open(md_path, 'r', encoding='utf-8') as f:
-        text = f.read()
-    lines = text.split('\n')
-    blocks = [{'type': 'title_page'}, {'type': 'copyright_page', 'lines': []}]
-    current_part = None
-    current_chapter = None
-    current_body = []
-    para_lines = []
-
-    def flush_para():
-        nonlocal para_lines
-        if para_lines:
-            current_body.append({'type': 'para', 'text': ' '.join(para_lines)})
-            para_lines = []
-
-    def flush_chapter():
-        nonlocal current_chapter, current_body
-        flush_para()
-        if current_body:
-            ch_title = current_chapter if current_chapter else ''
-            blocks.append({
-                'type': 'chapter',
-                'title': ch_title,
-                'subtitle': current_part or '',
-                'body': current_body[:],
-            })
-        current_chapter = None
-        current_body = []
-
-    for line in lines:
-        s = line.strip()
-        if s.startswith('# ') and not s.startswith('## '):
-            flush_chapter()
-            current_part = s[2:].strip()
-            blocks.append({'type': 'part', 'title': current_part})
-        elif s.startswith('## '):
-            flush_chapter()
-            current_chapter = s[3:].strip()
-        elif s in ('***', '---', '* * *'):
-            flush_para()
-            if current_chapter or current_body:
-                current_body.append({'type': 'scene_break'})
-        elif not s:
-            flush_para()
-        else:
-            para_lines.append(s)
-
-    flush_chapter()
-    return blocks
-
-
-class GenericBookBuilder:
-    """Book builder for novels and standard markdown manuscripts.
-    Uses the same rendering infrastructure as the portrait (FTS) builder
-    but with a simpler, generic layout: parts, chapters, scene breaks.
-    """
-
-    def __init__(self, md_path, output_path, title="Untitled", author="Unknown",
-                 publisher="D&H Publishing International"):
-        self.md_path = md_path
-        self.output_path = output_path
-        self.title = title
-        self.author = author
-        self.publisher = publisher
-        self.blocks = parse_generic_manuscript(md_path)
-        self.image_base_dir = os.path.dirname(os.path.abspath(md_path))
-
-    def _render(self, path, toc_entries=None):
-        r = BookRenderer(path, title=self.title, author=self.author)
-        r.image_base_dir = self.image_base_dir
-        r.publisher = self.publisher
-
-        # Override the hardcoded FTS running header with the book title
-        def _generic_header():
-            if r.suppress_hdr or r.is_front_matter:
-                return
-            r.c.setFont('GarI', HDR_SZ)
-            r.c.setFillColor(C_GREY)
-            r.c.drawCentredString(PAGE_W / 2, HEADER_Y, r.book_title)
-            r.c.setStrokeColor(HexColor('#D0C8B8'))
-            r.c.setLineWidth(0.3)
-            l, right = r._margins()
-            r.c.line(l, HEADER_Y - 6, PAGE_W - right, HEADER_Y - 6)
-        r._draw_header = _generic_header
-
-        for blk in self.blocks:
-            t = blk['type']
-            if t == 'title_page':
-                r.render_title()
-            elif t == 'copyright_page':
-                r._new_page(suppress=True)
-                r._finish_page()
-                r.render_copyright(blk['lines'])
-            elif t == 'part':
-                r._ensure_recto()
-                r._new_page()
-                r._ctxt(PAGE_H * 0.42, blk['title'].upper(), 'GarB', 16, C_BROWN)
-                r._finish_page()
-                r._new_page(suppress=True)
-                r._finish_page()
-            elif t == 'chapter':
-                if blk['title']:
-                    r.toc_entries.append((blk['title'], r.page_num + 1, 0))
-                    r.render_chapter_opener(blk['title'], blk.get('subtitle', ''))
-                else:
-                    r._ensure_recto()
-                    r._new_page()
-                    r._finish_page()
-                    r._new_page()
-                for item in blk.get('body', []):
-                    if item['type'] == 'para':
-                        r._draw_para(item['text'])
-                    elif item['type'] == 'scene_break':
-                        r._check_page(40)
-                        r.current_y -= 6
-                        r._dot_sep(r.current_y)
-                        r.current_y -= 20
-                if blk['title']:
-                    r.render_chapter_end()
-
-        r.render_back_page()
-        r.c.save()
-        return r.toc_entries
-
-    def build(self):
-        print("Pass 1: Collecting page numbers...")
-        tmp = self.output_path.replace('.pdf', '_p1.pdf')
-        toc = self._render(tmp)
-        print(f"  {len(toc)} TOC entries")
-        print("Pass 2: Final render with TOC...")
-        self._render(self.output_path, toc)
-        if os.path.exists(tmp):
-            os.remove(tmp)
-        self._set_trimbox()
-        print(f"\nDone: {self.output_path}")
-
-    def _set_trimbox(self):
-        from pypdf import PdfReader, PdfWriter
-        from pypdf.generic import ArrayObject, FloatObject, NameObject
-        reader = PdfReader(self.output_path)
-        writer = PdfWriter()
-        for page in reader.pages:
-            page[NameObject('/TrimBox')] = ArrayObject([
-                FloatObject(0), FloatObject(0),
-                FloatObject(PAGE_W), FloatObject(PAGE_H),
-            ])
-            writer.add_page(page)
-        writer.add_metadata({
-            '/Title': self.title,
-            '/Author': self.author,
             '/Creator': 'Layout Perfect Typesetting Engine',
             '/Producer': 'ReportLab + pypdf',
         })
