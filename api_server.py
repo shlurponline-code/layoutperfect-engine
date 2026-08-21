@@ -13,7 +13,6 @@ Endpoints:
 import os
 import io
 import json
-import base64
 import tempfile
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -50,6 +49,7 @@ class TypesetRequest(BaseModel):
     api_key: str
     manuscript: str = Field(..., description="Full markdown manuscript text")
     title: str = Field(default="Untitled")
+    subtitle: str = Field(default="")
     author: str = Field(default="Unknown")
     template: str = Field(default="portrait")
     trim_width: float = Field(default=5.5)
@@ -80,8 +80,6 @@ class TypesetResponse(BaseModel):
     word_count: int
     file_size_bytes: int
     message: str
-    pdf_base64: str
-    filename: str
 
 
 class EpubRequest(BaseModel):
@@ -137,6 +135,7 @@ def typeset(req: TypesetRequest):
             builder = GenericBookBuilder(
                 md_path, output_path,
                 title=req.title,
+                subtitle=req.subtitle,
                 author=req.author,
             )
         
@@ -160,12 +159,10 @@ def typeset(req: TypesetRequest):
             pdf_bytes = f.read()
 
         file_size = len(pdf_bytes)
-        pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
-        filename = f"{req.title.replace(' ', '_')}_interior_{req.edition}.pdf"
 
         # Store for the download endpoint
         app.state.last_pdf = pdf_bytes
-        app.state.last_pdf_name = filename
+        app.state.last_pdf_name = f"{req.title.replace(' ', '_')}_interior_{req.edition}.pdf"
 
         return TypesetResponse(
             success=True,
@@ -174,9 +171,7 @@ def typeset(req: TypesetRequest):
             spine_width_mm=round(spine_mm, 1),
             word_count=word_count,
             file_size_bytes=file_size,
-            message=f"Typeset complete: {page_count} pages at {req.trim_width} x {req.trim_height} inches",
-            pdf_base64=pdf_base64,
-            filename=filename,
+            message=f"Typeset complete: {page_count} pages at {req.trim_width} x {req.trim_height} inches"
         )
 
     except Exception as e:
