@@ -1216,6 +1216,173 @@ class BookBuilder:
             writer.write(f)
 
 
+# ═══════════════════════════════════════════════════════════════════
+# GENERIC BOOK BUILDER — novels and standard markdown manuscripts
+# Handles # Parts, ## Chapters, scene breaks (*** and ---), body text
+# ═══════════════════════════════════════════════════════════════════
+
+def parse_generic_manuscript(md_path):
+    """Parse a standard markdown manuscript into blocks.
+    Recognises # Parts, ## Chapters, scene breaks (*** --- * * *),
+    and body paragraphs separated by blank lines.
+    """
+    with open(md_path, 'r', encoding='utf-8') as f:
+        text = f.read()
+    lines = text.split('\n')
+    blocks = [{'type': 'title_page'}, {'type': 'copyright_page', 'lines': []}]
+    current_part = None
+    current_chapter = None
+    current_body = []
+    para_lines = []
+
+    def flush_para():
+        nonlocal para_lines
+        if para_lines:
+            current_body.append({'type': 'para', 'text': ' '.join(para_lines)})
+            para_lines = []
+
+    def flush_chapter():
+        nonlocal current_chapter, current_body
+        flush_para()
+        if current_body:
+            ch_title = current_chapter if current_chapter else ''
+            blocks.append({
+                'type': 'chapter',
+                'title': ch_title,
+                'subtitle': current_part or '',
+                'body': current_body[:],
+            })
+        current_chapter = None
+        current_body = []
+
+    for line in lines:
+        s = line.strip()
+        if s.startswith('# ') and not s.startswith('## '):
+            flush_chapter()
+            current_part = s[2:].strip()
+            blocks.append({'type': 'part', 'title': current_part})
+        elif s.startswith('## '):
+            flush_chapter()
+            current_chapter = s[3:].strip()
+        elif s in ('***', '---', '* * *'):
+            flush_para()
+            if current_chapter or current_body:
+                current_body.append({'type': 'scene_break'})
+        elif not s:
+            flush_para()
+        else:
+            para_lines.append(s)
+
+    flush_chapter()
+    return blocks
+
+
+class GenericBookBuilder:
+    """Book builder for novels and standard markdown manuscripts.
+    Uses the same rendering infrastructure as the portrait (FTS) builder
+    but with a simpler, generic layout: parts, chapters, scene breaks.
+    """
+
+    def __init__(self, md_path, output_path, title="Untitled", author="Unknown",
+                 publisher="D&H Publishing International"):
+        self.md_path = md_path
+        self.output_path = output_path
+        self.title = title
+        self.author = author
+        self.publisher = publisher
+        self.blocks = parse_generic_manuscript(md_path)
+        self.image_base_dir = os.path.dirname(os.path.abspath(md_path))
+
+    def _render(self, path, toc_entries=None):
+        r = BookRenderer(path, title=self.title, author=self.author)
+        r.image_base_dir = self.image_base_dir
+        r.publisher = self.publisher
+
+        # Override the hardcoded FTS running header with the book title
+        def _generic_header():
+            if r.suppress_hdr or r.is_front_matter:
+                return
+            r.c.setFont('GarI', HDR_SZ)
+            r.c.setFillColor(C_GREY)
+            r.c.drawCentredString(PAGE_W / 2, HEADER_Y, r.book_title)
+            r.c.setStrokeColor(HexColor('#D0C8B8'))
+            r.c.setLineWidth(0.3)
+            l, right = r._margins()
+            r.c.line(l, HEADER_Y - 6, PAGE_W - right, HEADER_Y - 6)
+        r._draw_header = _generic_header
+
+        for blk in self.blocks:
+            t = blk['type']
+            if t == 'title_page':
+                r.render_title()
+            elif t == 'copyright_page':
+                r._new_page(suppress=True)
+                r._finish_page()
+                r.render_copyright(blk['lines'])
+            elif t == 'part':
+                r._ensure_recto()
+                r._new_page()
+                r._ctxt(PAGE_H * 0.42, blk['title'].upper(), 'GarB', 16, C_BROWN)
+                r._finish_page()
+                r._new_page(suppress=True)
+                r._finish_page()
+            elif t == 'chapter':
+                if blk['title']:
+                    r.toc_entries.append((blk['title'], r.page_num + 1, 0))
+                    r.render_chapter_opener(blk['title'], blk.get('subtitle', ''))
+                else:
+                    r._ensure_recto()
+                    r._new_page()
+                    r._finish_page()
+                    r._new_page()
+                for item in blk.get('body', []):
+                    if item['type'] == 'para':
+                        r._draw_para(item['text'])
+                    elif item['type'] == 'scene_break':
+                        r._check_page(40)
+                        r.current_y -= 6
+                        r._dot_sep(r.current_y)
+                        r.current_y -= 20
+                if blk['title']:
+                    r.render_chapter_end()
+
+        r.render_back_page()
+        r.c.save()
+        return r.toc_entries
+
+    def build(self):
+        print("Pass 1: Collecting page numbers...")
+        tmp = self.output_path.replace('.pdf', '_p1.pdf')
+        toc = self._render(tmp)
+        print(f"  {len(toc)} TOC entries")
+        print("Pass 2: Final render with TOC...")
+        self._render(self.output_path, toc)
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        self._set_trimbox()
+        print(f"\nDone: {self.output_path}")
+
+    def _set_trimbox(self):
+        from pypdf import PdfReader, PdfWriter
+        from pypdf.generic import ArrayObject, FloatObject, NameObject
+        reader = PdfReader(self.output_path)
+        writer = PdfWriter()
+        for page in reader.pages:
+            page[NameObject('/TrimBox')] = ArrayObject([
+                FloatObject(0), FloatObject(0),
+                FloatObject(PAGE_W), FloatObject(PAGE_H),
+            ])
+            writer.add_page(page)
+        writer.add_metadata({
+            '/Title': self.title,
+            '/Author': self.author,
+            '/Creator': 'Layout Perfect Typesetting Engine',
+            '/Producer': 'ReportLab + pypdf',
+        })
+        with open(self.output_path, 'wb') as f:
+            writer.write(f)
+
+
 if __name__ == '__main__':
     builder = BookBuilder(
         '/mnt/user-data/uploads/From_These_Streets_-_Revised_Manuscript.md',
