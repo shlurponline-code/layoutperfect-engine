@@ -460,21 +460,59 @@ class GenericBookBuilder:
         # Title page
         r._new_page(suppress=True)
         y = PAGE_H - 2.2 * inch
-        # Split long titles across lines
-        title_words = self.title.split()
-        if len(title_words) > 4:
-            mid = len(title_words) // 2
-            r._ctxt(y, ' '.join(title_words[:mid]), 'GarB', 38, C_BODY)
-            y -= 46
-            r._ctxt(y, ' '.join(title_words[mid:]), 'GarB', 38, C_BODY)
-        else:
-            r._ctxt(y, self.title, 'GarB', 42, C_BODY)
-        y -= 40
+        
+        # Auto-size title to fit within page margins
+        # Start at 42pt, reduce until it fits (single or multi-line)
+        tw = r._tw()
+        title_sz = 42
+        title_lines = [self.title]
+        
+        while title_sz >= 18:
+            r.c.setFont('GarB', title_sz)
+            single_w = r.c.stringWidth(self.title, 'GarB', title_sz)
+            
+            if single_w <= tw:
+                # Fits on one line
+                title_lines = [self.title]
+                break
+            
+            # Try splitting into two lines
+            words = self.title.split()
+            best_split = None
+            best_max_w = single_w
+            for split_at in range(1, len(words)):
+                line1 = ' '.join(words[:split_at])
+                line2 = ' '.join(words[split_at:])
+                w1 = r.c.stringWidth(line1, 'GarB', title_sz)
+                w2 = r.c.stringWidth(line2, 'GarB', title_sz)
+                max_w = max(w1, w2)
+                if max_w < best_max_w:
+                    best_max_w = max_w
+                    best_split = (line1, line2)
+            
+            if best_split and best_max_w <= tw:
+                title_lines = [best_split[0], best_split[1]]
+                break
+            
+            title_sz -= 2
+        
+        # Render title lines
+        for tl in title_lines:
+            r._ctxt(y, tl, 'GarB', title_sz, C_BODY)
+            y -= title_sz + 8
+        
+        y -= 8
         
         # Subtitle (if provided)
         if self.subtitle:
-            r._ctxt(y, self.subtitle, 'GarI', 16, C_BROWN)
-            y -= 30
+            # Auto-size subtitle too
+            sub_sz = 16
+            while sub_sz >= 10:
+                if r.c.stringWidth(self.subtitle, 'GarI', sub_sz) <= tw:
+                    break
+                sub_sz -= 1
+            r._ctxt(y, self.subtitle, 'GarI', sub_sz, C_BROWN)
+            y -= sub_sz + 14
         
         r._divider(y, 'star'); y -= 35
         r._ctxt(y, self.author, 'GarI', 14, C_DARK); y -= 35
