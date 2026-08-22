@@ -37,6 +37,15 @@ MARGIN_BOTTOM  = 1.0 * inch     # 2.54cm
 HEADER_Y = PAGE_H - 0.5 * inch
 FOOTER_Y = 0.5 * inch
 
+def set_trim_size(width_in, height_in):
+    """Set page dimensions globally. Must be called before building.
+    Supports all 14 KDP trim sizes."""
+    global PAGE_W, PAGE_H, HEADER_Y, FOOTER_Y
+    PAGE_W = width_in * inch
+    PAGE_H = height_in * inch
+    HEADER_Y = PAGE_H - 0.5 * inch
+    FOOTER_Y = 0.5 * inch
+
 # ── Colours ─────────────────────────────────────────────────────────
 C_BODY    = HexColor('#2C2C2C')
 C_BROWN   = HexColor('#8B7355')
