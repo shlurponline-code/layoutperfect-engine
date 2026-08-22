@@ -4,3 +4,4 @@ reportlab
 pypdf
 python-multipart
 pillow
+qrcode[pil]
