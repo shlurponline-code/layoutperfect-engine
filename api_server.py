@@ -71,6 +71,10 @@ class TypesetRequest(BaseModel):
     chapter_start: str = Field(default="recto")
     include_index: bool = Field(default=False)
 
+    # Author Central back page
+    add_author_central_page: bool = Field(default=False)
+    author_central_url: str = Field(default="")
+
 
 class TypesetResponse(BaseModel):
     success: bool
@@ -99,6 +103,138 @@ class EpubRequest(BaseModel):
 @app.get("/health")
 def health():
     return {"status": "ok", "engine": "Layout Perfect v1.0"}
+
+
+def append_author_central_page(pdf_path, trim_width, trim_height, author_central_url):
+    """Append an Author Central back page (recto) with QR code to the PDF."""
+    import qrcode
+    from reportlab.lib.pagesizes import inch
+    from reportlab.lib.colors import HexColor
+    from reportlab.pdfgen import canvas as cv
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.lib.utils import ImageReader
+    from pypdf import PdfReader, PdfWriter
+
+    FD = "/usr/share/fonts/truetype/freefont"
+    pdfmetrics.registerFont(TTFont("Gar", f"{FD}/FreeSerif.ttf"))
+    pdfmetrics.registerFont(TTFont("GarB", f"{FD}/FreeSerifBold.ttf"))
+    pdfmetrics.registerFont(TTFont("GarI", f"{FD}/FreeSerifItalic.ttf"))
+
+    C_BODY = HexColor("#2C2C2C")
+    C_DARK = HexColor("#4A4A4A")
+    C_GREY = HexColor("#999999")
+
+    PAGE_W = trim_width * inch
+    PAGE_H = trim_height * inch
+    MARGIN = 1.0 * inch
+
+    url = author_central_url.strip()
+    if not url:
+        return
+    full_url = url if url.startswith("http") else f"https://{url}"
+    display_url = url.replace("https://", "").replace("http://", "")
+
+    def wrap_text(text, font, size, max_width):
+        words = text.split()
+        lines = []
+        current = []
+        for word in words:
+            test = " ".join(current + [word])
+            if pdfmetrics.stringWidth(test, font, size) <= max_width:
+                current.append(word)
+            else:
+                if current:
+                    lines.append(" ".join(current))
+                current = [word]
+        if current:
+            lines.append(" ".join(current))
+        return lines
+
+    # Generate QR code with high error correction (allows logo overlay)
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        box_size=10,
+        border=2,
+    )
+    qr.add_data(full_url)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="#2C2C2C", back_color="white")
+    qr_buffer = io.BytesIO()
+    qr_img.save(qr_buffer, format="PNG")
+    qr_buffer.seek(0)
+    qr_reader = ImageReader(qr_buffer)
+
+    # Create the Author Central page
+    ac_path = pdf_path.replace(".pdf", "_author_central.pdf")
+    c = cv.Canvas(ac_path, pagesize=(PAGE_W, PAGE_H))
+
+    # Heading
+    y = PAGE_H - MARGIN - 50
+    c.setFont("GarB", 16)
+    c.setFillColor(C_BODY)
+    c.drawCentredString(PAGE_W / 2, y, "Discover more from this author")
+    y -= 35
+
+    # Paragraphs
+    para1 = ("Every book has a story behind the story. Visit the author's page at "
+             "AuthorCentral to find out more about the person who wrote the words "
+             "you've just read. You'll find their complete catalogue of published works, "
+             "background on how this book came to be written, and ways to get in touch "
+             "directly. If you enjoyed this book, there may be bonus content waiting "
+             "for you, including material that didn't make the final cut, maps, reading "
+             "group discussion points, and recommendations for what to read next.")
+
+    para2 = "Scan the QR code below or visit authorcentral.net to explore."
+
+    text_w = PAGE_W - 2 * MARGIN
+    c.setFont("Gar", 10.5)
+    c.setFillColor(C_BODY)
+    for line in wrap_text(para1, "Gar", 10.5, text_w):
+        y -= 14.5
+        c.drawString(MARGIN, y, line)
+    y -= 14.5
+    for line in wrap_text(para2, "Gar", 10.5, text_w):
+        y -= 14.5
+        c.drawString(MARGIN, y, line)
+
+    # QR code (25mm square, centered)
+    qr_size = 25 * 72 / 25.4
+    qr_x = (PAGE_W - qr_size) / 2
+    y -= 50
+    c.drawImage(qr_reader, qr_x, y - qr_size, width=qr_size, height=qr_size)
+
+    # URL text below QR code
+    y -= qr_size + 25
+    c.setFont("GarI", 10)
+    c.setFillColor(C_DARK)
+    c.drawCentredString(PAGE_W / 2, y, display_url)
+
+    # Copyright at foot
+    c.setFont("Gar", 9)
+    c.setFillColor(C_GREY)
+    c.drawCentredString(PAGE_W / 2, MARGIN + 14, "Published by D&H Publishing International Ltd")
+    c.drawCentredString(PAGE_W / 2, MARGIN, "authorcentral.net")
+
+    c.save()
+
+    # Merge into main PDF, ensuring recto page
+    reader = PdfReader(pdf_path)
+    writer = PdfWriter()
+    for page in reader.pages:
+        writer.add_page(page)
+
+    if len(writer.pages) % 2 == 1:
+        writer.add_blank_page(width=PAGE_W, height=PAGE_H)
+
+    ac_reader = PdfReader(ac_path)
+    writer.add_page(ac_reader.pages[0])
+
+    with open(pdf_path, "wb") as f:
+        writer.write(f)
+
+    os.remove(ac_path)
 
 
 @app.post("/typeset", response_model=TypesetResponse)
@@ -142,6 +278,10 @@ def typeset(req: TypesetRequest):
             )
         
         builder.build()
+
+        # Append Author Central back page if requested
+        if req.add_author_central_page and req.author_central_url:
+            append_author_central_page(output_path, req.trim_width, req.trim_height, req.author_central_url)
 
         # Count actual pages from the generated PDF
         from pypdf import PdfReader
