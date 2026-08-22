@@ -1240,47 +1240,84 @@ class BookRenderer:
         self.current_y = PAGE_H - MARGIN_TOP - 30
         self._ctxt(self.current_y, 'Contents', 'GarB', 22, C_BODY)
         self.current_y -= 40
-        
+
         lm = self._lm()
         tw = self._tw()
-        
+
+        # Reserve space for page number on the right (e.g. "210" max width)
+        pg_num_reserve = 28  # points — enough for a 3-digit page number
+        title_max_w = tw - pg_num_reserve - 12  # 12pt gap between title and leaders
+
         for title, page, level in entries:
-            self._check_page(30)
-            
             if level == 0:
                 font, sz = 'GarB', 11
                 indent = 0
-                self.current_y -= 6
+                line_h = 16
+                pre_gap = 6
             else:
                 font, sz = 'Gar', 10
                 indent = 18
-            
+                line_h = 14
+                pre_gap = 0
+
             self.c.setFont(font, sz)
-            self.c.setFillColor(C_BODY)
-            
+
             pg_str = str(page)
             x_start = lm + indent
             x_end = lm + tw
-            
-            self.c.drawString(x_start, self.current_y, title)
+
+            # Wrap title into lines that fit within title_max_w
+            max_title_w = title_max_w - indent
+            words = title.split()
+            wrapped_lines = []
+            current_line = ''
+            for word in words:
+                test = (current_line + ' ' + word).strip()
+                if self.c.stringWidth(test, font, sz) <= max_title_w:
+                    current_line = test
+                else:
+                    if current_line:
+                        wrapped_lines.append(current_line)
+                    current_line = word
+            if current_line:
+                wrapped_lines.append(current_line)
+            if not wrapped_lines:
+                wrapped_lines = [title]
+
+            total_h = len(wrapped_lines) * line_h + pre_gap + 2
+            self._check_page(total_h + 10)
+
+            self.current_y -= pre_gap
+            self.c.setFillColor(C_BODY)
+
+            # Draw all lines except the last
+            for line in wrapped_lines[:-1]:
+                self.c.drawString(x_start, self.current_y, line)
+                self.current_y -= line_h
+
+            # Last line: draw title text, dot leaders, and page number on same baseline
+            last_line = wrapped_lines[-1]
+            self.c.setFont(font, sz)
+            self.c.setFillColor(C_BODY)
+            self.c.drawString(x_start, self.current_y, last_line)
             self.c.drawRightString(x_end, self.current_y, pg_str)
-            
-            # Dot leaders
-            title_w = self.c.stringWidth(title, font, sz)
+
+            # Dot leaders on last line
+            last_w = self.c.stringWidth(last_line, font, sz)
             pg_w = self.c.stringWidth(pg_str, font, sz)
-            dot_s = x_start + title_w + 8
-            dot_e = x_end - pg_w - 8
-            if dot_e > dot_s + 12:
+            dot_s = x_start + last_w + 6
+            dot_e = x_end - pg_w - 6
+            if dot_e > dot_s + 10:
                 self.c.setFont('Gar', sz)
                 self.c.setFillColor(C_GREY)
-                dot_w = self.c.stringWidth(' . ', 'Gar', sz)
+                dot_w = self.c.stringWidth('.', 'Gar', sz) + 1
                 x = dot_s
-                while x + dot_w < dot_e:
+                while x + dot_w <= dot_e:
                     self.c.drawString(x, self.current_y, '.')
                     x += dot_w
-            
-            self.current_y -= (16 if level == 0 else 14)
-        
+
+            self.current_y -= line_h + 2
+
         self.current_y -= 20
         self._ornament(self.current_y)
         self._finish_page()
