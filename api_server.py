@@ -266,6 +266,9 @@ def typeset(req: TypesetRequest):
         engine.BODY_LD = req.leading_pt
         engine.CH_TITLE_SZ = req.chapter_title_size_pt
 
+        # Apply trim size from user selection (supports all KDP trim sizes)
+        engine.set_trim_size(req.trim_width, req.trim_height)
+
         # Route to the correct builder based on template
         if req.template == 'portrait':
             builder = BookBuilder(md_path, output_path)
