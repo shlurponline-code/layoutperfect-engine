@@ -86,6 +86,8 @@ class TypesetResponse(BaseModel):
     message: str
     pdf_base64: str = Field(default="")
     filename: str = Field(default="")
+    epub_base64: str = Field(default="")
+    epub_filename: str = Field(default="")
 
 
 class EpubRequest(BaseModel):
@@ -311,6 +313,27 @@ def typeset(req: TypesetRequest):
         filename = f"{req.title.replace(' ', '_')}_interior_{req.edition}.pdf"
 
         # Store for the download endpoint
+        # Generate ePub
+        epub_b64 = ""
+        epub_filename = f"{req.title.replace(' ', '_')}.epub"
+        epub_path = md_path.replace('.md', '_PRINT.epub')
+        try:
+            from epub_builder import build_epub
+            build_epub(md_path, epub_path, title=req.title, author=req.author,
+                       publisher='D&H Publishing International', isbn='',
+                       language='en-GB', subtitle=req.subtitle)
+            with open(epub_path, 'rb') as ef:
+                epub_bytes = ef.read()
+            epub_b64 = base64.b64encode(epub_bytes).decode('utf-8')
+        except Exception as epub_err:
+            print(f"ePub generation failed: {epub_err}")
+        finally:
+            if os.path.exists(epub_path):
+                try:
+                    os.remove(epub_path)
+                except:
+                    pass
+
         app.state.last_pdf = pdf_bytes
         app.state.last_pdf_name = filename
 
@@ -323,7 +346,9 @@ def typeset(req: TypesetRequest):
             file_size_bytes=file_size,
             message=f"Typeset complete: {page_count} pages at {req.trim_width} x {req.trim_height} inches",
             pdf_base64=pdf_base64,
-            filename=filename
+            filename=filename,
+            epub_base64=epub_b64,
+            epub_filename=epub_filename
         )
 
     except Exception as e:
