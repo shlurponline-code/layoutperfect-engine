@@ -8,6 +8,7 @@ fleuron ornaments, three-dot profile separators, themed chapter openers.
 """
 
 import re, os
+import pyphen
 from reportlab.lib.pagesizes import inch
 from reportlab.lib.colors import HexColor
 from reportlab.pdfgen import canvas
@@ -70,6 +71,38 @@ CH_TITLE_SZ  = 22
 CH_SUB_SZ    = 13
 HDR_SZ = 8
 FTR_SZ = 9
+# Text alignment and hyphenation (LP-FEAT-007)
+TEXT_ALIGNMENT = 'justified'
+HYPHEN_LANGUAGE = 'en_GB'
+HYPHENATE = True
+SOFT_HYPHEN = '\u00AD'
+
+_hyphenator_cache = {}
+
+def get_hyphenator(lang='en_GB'):
+    if lang not in _hyphenator_cache:
+        try:
+            _hyphenator_cache[lang] = pyphen.Pyphen(lang=lang)
+        except Exception:
+            _hyphenator_cache[lang] = None
+    return _hyphenator_cache[lang]
+
+def add_soft_hyphens(text, lang='en_GB'):
+    if not HYPHENATE:
+        return text
+    hyphenator = get_hyphenator(lang)
+    if not hyphenator:
+        return text
+    words = text.split()
+    result = []
+    for word in words:
+        clean = re.sub(r'[^a-zA-Z]', '', word)
+        if len(clean) <= 5:
+            result.append(word)
+            continue
+        hyphenated = hyphenator.inserted(word, hyphen=SOFT_HYPHEN)
+        result.append(hyphenated)
+    return ' '.join(result)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -792,16 +825,42 @@ class BookRenderer:
         lines = []
         cur = ''
         for w in words:
-            test = f'{cur} {w}'.strip()
+            clean_w = w.replace(SOFT_HYPHEN, '')
+            clean_cur = cur.replace(SOFT_HYPHEN, '')
+            test = f'{clean_cur} {clean_w}'.strip()
             if self.c.stringWidth(test, font, sz) <= max_w:
                 cur = test
             else:
-                if cur:
-                    lines.append(cur)
-                cur = w
+                if clean_cur:
+                    lines.append(clean_cur)
+                    cur = ''
+                if SOFT_HYPHEN in w and HYPHENATE:
+                    cur = self._fit_hyphenated(w, font, sz, max_w, lines)
+                else:
+                    cur = clean_w
         if cur:
-            lines.append(cur)
+            lines.append(cur.replace(SOFT_HYPHEN, ''))
         return lines or ['']
+    
+    def _fit_hyphenated(self, word, font, sz, max_w, lines):
+        """Try to fit a word by breaking at soft hyphens."""
+        parts = word.split(SOFT_HYPHEN)
+        fitted = ''
+        for i, part in enumerate(parts):
+            candidate = fitted + part
+            if i < len(parts) - 1:
+                width = self.c.stringWidth(candidate + '-', font, sz)
+            else:
+                width = self.c.stringWidth(candidate, font, sz)
+            if width <= max_w:
+                fitted = candidate
+            else:
+                if fitted:
+                    lines.append(fitted + '-')
+                    return SOFT_HYPHEN.join(parts[i:])
+                else:
+                    return word.replace(SOFT_HYPHEN, '')
+        return fitted
     
     def _check_page(self, needed=20):
         """If not enough room, finish page and start new one."""
@@ -811,32 +870,61 @@ class BookRenderer:
             self.current_y = PAGE_H - MARGIN_TOP - 10
     
     def _draw_para(self, text, centered=False, font='Gar', sz=BODY_SZ, 
-                   leading=BODY_LD, color=C_BODY, indent=0):
+                   leading=BODY_LD, color=C_BODY, indent=0, align=None):
         """Draw a wrapped paragraph. Updates self.current_y."""
+        if align is None:
+            align = 'center' if centered else TEXT_ALIGNMENT
         # Strip remaining markdown formatting
-        text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)  # bold
-        text = re.sub(r'\*([^*]+)\*', r'\1', text)      # italic
-        text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)  # links
+        text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+        text = re.sub(r'\*([^*]+)\*', r'\1', text)
+        text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
         text = text.replace('\\"', '"').replace("\\'", "'")
         
+        # Apply hyphenation for justified text
+        if align == 'justified' and HYPHENATE:
+            text = add_soft_hyphens(text, HYPHEN_LANGUAGE)
+        
         # Word-wrap using the NARROWER margin to be safe across page breaks
-        # (inside margin is wider than outside, giving a narrower text width)
-        min_tw = PAGE_W - MARGIN_INSIDE - MARGIN_OUTSIDE  # narrowest possible
+        min_tw = PAGE_W - MARGIN_INSIDE - MARGIN_OUTSIDE
         lines = self._wrap(text, font, sz, min_tw - indent)
         
-        for line_text in lines:
+        for i, line_text in enumerate(lines):
             self._check_page()
-            # Recalculate margins fresh for CURRENT page after any page break
             lm = self._lm() + indent
             self.c.setFont(font, sz)
             self.c.setFillColor(color)
-            if centered:
+            if align == 'center':
                 self.c.drawCentredString(PAGE_W/2, self.current_y, line_text)
+            elif align == 'right':
+                line_w = self.c.stringWidth(line_text, font, sz)
+                self.c.drawString(PAGE_W - MARGIN_OUTSIDE - line_w, self.current_y, line_text)
+            elif align == 'justified' and i < len(lines) - 1:
+                self._draw_justified_line(line_text, lm, self.current_y, font, sz, min_tw - indent)
             else:
                 self.c.drawString(lm, self.current_y, line_text)
             self.current_y -= leading
         
         self.current_y -= 2  # paragraph gap
+    
+    def _draw_justified_line(self, line_text, x, y, font, sz, max_w):
+        """Draw a line justified to fill max_w (not the last line)."""
+        words = line_text.split()
+        if len(words) <= 1:
+            self.c.drawString(x, y, line_text)
+            return
+        self.c.setFont(font, sz)
+        total_words_w = sum(self.c.stringWidth(w, font, sz) for w in words)
+        space_w = self.c.stringWidth(' ', font, sz)
+        natural_w = total_words_w + space_w * (len(words) - 1)
+        extra = max_w - natural_w
+        if extra <= 0:
+            self.c.drawString(x, y, line_text)
+            return
+        gap = space_w + extra / (len(words) - 1)
+        cur_x = x
+        for w in words:
+            self.c.drawString(cur_x, y, w)
+            cur_x += self.c.stringWidth(w, font, sz) + gap
     
     def _draw_image(self, caption, img_path, size_hint='full'):
         """Render an image with caption. Supports six placement modes:
@@ -1241,7 +1329,7 @@ class BookRenderer:
         self._ctxt(self.current_y, 'A Note on Inclusion', 'GarB', 14, C_BODY)
         self.current_y -= 28
         for para in paras:
-            self._draw_para(para)
+            self._draw_para(para, align='left')
         self._finish_page()
     
     def render_toc(self, entries):
