@@ -75,6 +75,10 @@ class TypesetRequest(BaseModel):
     add_author_central_page: bool = Field(default=False)
     author_central_url: str = Field(default="")
 
+    # Text alignment and hyphenation (LP-FEAT-007)
+    text_alignment: str = Field(default="justified", description="justified, left, center, right")
+    language: str = Field(default="en_GB", description="Hyphenation language: en_GB, en_US, fr, de, es")
+
 
 class TypesetResponse(BaseModel):
     success: bool
@@ -267,6 +271,8 @@ def typeset(req: TypesetRequest):
         engine.BODY_SZ = req.body_size_pt
         engine.BODY_LD = req.leading_pt
         engine.CH_TITLE_SZ = req.chapter_title_size_pt
+        engine.TEXT_ALIGNMENT = req.text_alignment
+        engine.HYPHEN_LANGUAGE = req.language
 
         # Apply trim size from user selection (supports all KDP trim sizes)
         engine.set_trim_size(req.trim_width, req.trim_height)
