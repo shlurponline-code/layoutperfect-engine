@@ -6,3 +6,4 @@ python-multipart
 pillow
 qrcode[pil]
 ebooklib>=0.18
+pyphen
