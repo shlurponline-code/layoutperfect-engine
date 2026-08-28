@@ -92,6 +92,7 @@ class TypesetResponse(BaseModel):
     filename: str = Field(default="")
     epub_base64: str = Field(default="")
     epub_filename: str = Field(default="")
+    block_types: str = Field(default="")
 
 
 class EpubRequest(BaseModel):
@@ -288,6 +289,9 @@ def typeset(req: TypesetRequest):
                 author=req.author,
             )
         
+        block_types = ",".join(b.get('type','?') for b in builder.blocks)
+        print(f"BLOCK_TYPES: {block_types}")
+        
         builder.build()
 
         # Append Author Central back page if requested
@@ -354,7 +358,8 @@ def typeset(req: TypesetRequest):
             pdf_base64=pdf_base64,
             filename=filename,
             epub_base64=epub_b64,
-            epub_filename=epub_filename
+            epub_filename=epub_filename,
+            block_types=block_types
         )
 
     except Exception as e:
