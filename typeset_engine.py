@@ -482,7 +482,8 @@ class GenericBookBuilder:
     
     def __init__(self, md_path, output_path, title='Untitled', author='Unknown',
                  subtitle='', publisher='D&H Publishing International',
-                 publisher_url='www.dandhpublishing.com'):
+                 publisher_url='www.dandhpublishing.com',
+                 chapter_end_ornament='fleuron'):
         self.md_path = md_path
         self.output_path = output_path
         self.title = title
@@ -490,6 +491,7 @@ class GenericBookBuilder:
         self.author = author
         self.publisher = publisher
         self.publisher_url = publisher_url
+        self.chapter_end_ornament = chapter_end_ornament
         self.blocks = parse_manuscript_generic(md_path)
         self.image_base_dir = os.path.dirname(os.path.abspath(md_path))
     
@@ -497,6 +499,7 @@ class GenericBookBuilder:
         r = BookRenderer(path)
         r.image_base_dir = self.image_base_dir
         r.header_text = self.title
+        r.chapter_end_ornament = self.chapter_end_ornament
         
         # ── Front matter (generic, driven by title/author) ──
         # Title page
@@ -743,7 +746,8 @@ class BookRenderer:
         self.output_path = output_path
         self.image_base_dir = ''  # set by BookBuilder
         self.image_log = []  # [(filename, page, size_hint, dpi, status)]
-        self.header_text = ''  # set by builder — used in running header
+        self.header_text = ''  # set by builder
+        self.chapter_end_ornament = 'fleuron'  # fleuron | divider | none — used in running header
         
     def _margins(self):
         if self.page_num % 2 == 1:  # Recto: gutter left
@@ -1469,7 +1473,13 @@ class BookRenderer:
     def render_chapter_end(self):
         self._check_page(50)
         self.current_y -= 15
-        self._divider(self.current_y, 'end')
+        ornament = getattr(self, 'chapter_end_ornament', 'fleuron')
+        if ornament == 'none':
+            pass
+        elif ornament == 'divider':
+            self._divider(self.current_y, 'end')
+        else:  # fleuron (default) — the decorative flourish
+            self._ornament(self.current_y)
         self._finish_page()
     
     def render_profile(self, name, tagline, body, is_first=False):
