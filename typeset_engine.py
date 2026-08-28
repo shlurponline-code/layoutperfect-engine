@@ -63,8 +63,8 @@ pdfmetrics.registerFont(TTFont('GarBI', f'{FD}/FreeSerifBoldItalic.ttf'))
 pdfmetrics.registerFontFamily('Gar', normal='Gar', bold='GarB',
                               italic='GarI', boldItalic='GarBI')
 
-BODY_SZ = 10.5
-BODY_LD = 14.5
+BODY_SZ = 12
+BODY_LD = 18
 PROF_NAME_SZ = 12.5
 PROF_TAG_SZ  = 9.5
 CH_TITLE_SZ  = 22
