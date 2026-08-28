@@ -287,6 +287,7 @@ def typeset(req: TypesetRequest):
                 title=req.title,
                 subtitle=req.subtitle,
                 author=req.author,
+                chapter_end_ornament=req.chapter_end_ornament,
             )
         
         block_types = ",".join(b.get('type','?') for b in builder.blocks)
