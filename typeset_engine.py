@@ -650,7 +650,7 @@ class GenericBookBuilder:
                     elif item['type'] == 'scene_break':
                         r._check_page(40)
                         r.current_y -= 12
-                        r._ctxt(r.current_y, '•   •   •', 'Gar', 10, C_MID)
+                        r._ctxt_block(r.current_y, '•   •   •', 'Gar', 10, C_MID)
                         r.current_y -= 20
                     elif item['type'] == 'image':
                         r._draw_content(item['text'])
@@ -811,6 +811,12 @@ class BookRenderer:
         self.c.setFont(font, sz)
         self.c.setFillColor(color)
         self.c.drawCentredString(PAGE_W/2, y, text)
+
+    def _ctxt_block(self, y, text, font, sz, color=C_BODY):
+        """Center text within the text block (accounts for gutter/inside-outside margins)."""
+        self.c.setFont(font, sz)
+        self.c.setFillColor(color)
+        self.c.drawCentredString(self._lm() + self._tw() / 2, y, text)
     
     def _ornament(self, y, ch='❦', sz=18, color=C_BROWN):
         self._ctxt(y, ch, 'Gar', sz, color)
@@ -820,7 +826,7 @@ class BookRenderer:
         self._ctxt(y, f'— {ch} —', 'Gar', 16, C_BROWN)
     
     def _dot_sep(self, y):
-        self._ctxt(y, '•   •   •', 'Gar', 10, C_MID)
+        self._ctxt_block(y, '•   •   •', 'Gar', 10, C_MID)
         return y - 8
     
     def _wrap(self, text, font, sz, max_w):
@@ -1477,9 +1483,9 @@ class BookRenderer:
         if ornament == 'none':
             pass
         elif ornament == 'divider':
-            self._divider(self.current_y, 'end')
+            self._ctxt_block(self.current_y, '— ❧ —', 'Gar', 16, C_BROWN)
         else:  # fleuron (default) — the decorative flourish
-            self._ornament(self.current_y)
+            self._ctxt_block(self.current_y, '❦', 'Gar', 18, C_BROWN)
         self._finish_page()
     
     def render_profile(self, name, tagline, body, is_first=False):
