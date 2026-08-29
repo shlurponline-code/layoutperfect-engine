@@ -93,6 +93,7 @@ class TypesetResponse(BaseModel):
     epub_base64: str = Field(default="")
     epub_filename: str = Field(default="")
     block_types: str = Field(default="")
+    toc_title: str = Field(default="")
 
 
 class EpubRequest(BaseModel):
@@ -261,7 +262,7 @@ def typeset(req: TypesetRequest):
 
     try:
         # Import the engine
-        from typeset_engine import BookBuilder, GenericBookBuilder, PAGE_W, PAGE_H
+        from typeset_engine import BookBuilder, GenericBookBuilder, PAGE_W, PAGE_H, get_toc_title
 
         # Apply custom margins
         import typeset_engine as engine
@@ -360,6 +361,7 @@ def typeset(req: TypesetRequest):
             pdf_base64=pdf_base64,
             filename=filename,
             epub_base64=epub_b64,
+            toc_title=get_toc_title(req.language),
             epub_filename=epub_filename,
             block_types=block_types
         )
