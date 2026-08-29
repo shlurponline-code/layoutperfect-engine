@@ -1661,6 +1661,7 @@ class BookBuilder:
         r = BookRenderer(path)
         r.image_base_dir = self.image_base_dir
         r.header_text = 'FROM THESE STREETS \u2013 Salfordians who Changed the World'
+        r.toc_title = self.toc_title
         first_in_ch = True
         
         for i, blk in enumerate(self.blocks):
