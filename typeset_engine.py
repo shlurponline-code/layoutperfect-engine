@@ -217,7 +217,7 @@ def parse_manuscript(filepath):
             in_note = True
             continue
         if in_note:
-            if line.strip() == '**Contents**':
+            if is_toc_placeholder_line(line):
                 break
             note_lines.append(line)
     note_paras = join_paragraphs(note_lines)
@@ -341,7 +341,7 @@ def parse_manuscript(filepath):
         # and NOT the back page URL or other non-profile bold text
         if (p.startswith('**') and p.endswith('**') and len(p) < 80
             and not p.startswith('**FROM') and not p.startswith('**A Note')
-            and not p.startswith('**Contents')
+            and not is_toc_placeholder_line(p)
             and not p.startswith('**www.')
             and '(' not in p):  # Afterword inline profiles have (dates) after
             name = p.strip('*')
@@ -384,6 +384,66 @@ def parse_manuscript(filepath):
         i += 1
     
     return blocks
+
+
+# Localised "Table of Contents" titles, keyed by language code.
+# Used for the generated TOC heading and to recognise manuscript TOC
+# placeholders (bold or markdown) so they are not rendered as body text.
+TOC_TITLES = {
+    'en_GB': 'Table of Contents',
+    'en_US': 'Table of Contents',
+    'en': 'Table of Contents',
+    'fr': 'Table des matières',
+    'de': 'Inhaltsverzeichnis',
+    'es': 'Índice',
+    'it': 'Indice',
+    'pt': 'Índice',
+    'pt_BR': 'Sumário',
+    'nl': 'Inhoudsopgave',
+    'sv': 'Innehållsförteckning',
+    'da': 'Indholdsfortegnelse',
+    'nb': 'Innholdsfortegnelse',
+    'nn': 'Innhaldsfortegnelse',
+    'fi': 'Sisällysluettelo',
+    'pl': 'Spis treści',
+    'cs': 'Obsah',
+    'sk': 'Obsah',
+    'hu': 'Tartalomjegyzék',
+    'ro': 'Cuprins',
+    'ru': 'Содержание',
+    'uk': 'Зміст',
+    'el': 'Περιεχόμενα',
+    'tr': 'İçindekiler',
+    'ar': 'فهرس المحتويات',
+    'he': 'תוכן העניינים',
+    'ja': '目次',
+    'zh': '目录',
+    'zh_CN': '目录',
+    'zh_TW': '目錄',
+    'ko': '차례',
+}
+
+_TOC_PLACEHOLDER_TEXTS = set(TOC_TITLES.values()) | {'Contents'}
+
+
+def get_toc_title(lang='en_GB'):
+    """Return the localised 'Table of Contents' heading for a language code."""
+    if not lang:
+        return TOC_TITLES['en_GB']
+    if lang in TOC_TITLES:
+        return TOC_TITLES[lang]
+    base = lang.split('_')[0]
+    if base in TOC_TITLES:
+        return TOC_TITLES[base]
+    if base.startswith('en'):
+        return TOC_TITLES['en_GB']
+    return TOC_TITLES['en_GB']
+
+
+def is_toc_placeholder_line(text):
+    """True if a manuscript line is a TOC heading placeholder (markdown or bold)."""
+    t = text.strip().lstrip('#').strip().strip('*').strip()
+    return t in _TOC_PLACEHOLDER_TEXTS
 
 
 def parse_manuscript_generic(filepath):
@@ -494,7 +554,8 @@ class GenericBookBuilder:
     def __init__(self, md_path, output_path, title='Untitled', author='Unknown',
                  subtitle='', publisher='D&H Publishing International',
                  publisher_url='www.dandhpublishing.com',
-                 chapter_end_ornament='fleuron'):
+                 chapter_end_ornament='fleuron',
+                 language='en_GB'):
         self.md_path = md_path
         self.output_path = output_path
         self.title = title
@@ -503,6 +564,8 @@ class GenericBookBuilder:
         self.publisher = publisher
         self.publisher_url = publisher_url
         self.chapter_end_ornament = chapter_end_ornament
+        self.language = language
+        self.toc_title = get_toc_title(language)
         self.blocks = parse_manuscript_generic(md_path)
         self.image_base_dir = os.path.dirname(os.path.abspath(md_path))
     
@@ -511,6 +574,7 @@ class GenericBookBuilder:
         r.image_base_dir = self.image_base_dir
         r.header_text = self.title
         r.chapter_end_ornament = self.chapter_end_ornament
+        r.toc_title = self.toc_title
         
         # ── Front matter (generic, driven by title/author) ──
         # Title page
@@ -624,7 +688,7 @@ class GenericBookBuilder:
             r.render_toc(toc_entries)
         else:
             r._ensure_recto()
-            r._ctxt(PAGE_H - MARGIN_TOP - 30, 'Contents', 'GarB', 22, C_BODY)
+            r._ctxt(PAGE_H - MARGIN_TOP - 30, r.toc_title, 'GarB', 22, C_BODY)
             r._finish_page()
             r._new_page(suppress=True)
             r._finish_page()
@@ -758,6 +822,7 @@ class BookRenderer:
         self.image_base_dir = ''  # set by BookBuilder
         self.image_log = []  # [(filename, page, size_hint, dpi, status)]
         self.header_text = ''  # set by builder
+        self.toc_title = 'Table of Contents'  # localised by builder
         self.chapter_end_ornament = 'fleuron'  # fleuron | divider | none — used in running header
         
     def _margins(self):
@@ -1356,7 +1421,7 @@ class BookRenderer:
     def render_toc(self, entries):
         self._ensure_recto()
         self.current_y = PAGE_H - MARGIN_TOP - 30
-        self._ctxt(self.current_y, 'Contents', 'GarB', 22, C_BODY)
+        self._ctxt(self.current_y, self.toc_title, 'GarB', 22, C_BODY)
         self.current_y -= 40
 
         lm = self._lm()
@@ -1583,9 +1648,11 @@ class BookRenderer:
 # ═══════════════════════════════════════════════════════════════════
 
 class BookBuilder:
-    def __init__(self, md_path, output_path):
+    def __init__(self, md_path, output_path, language='en_GB'):
         self.md_path = md_path
         self.output_path = output_path
+        self.language = language
+        self.toc_title = get_toc_title(language)
         self.blocks = parse_manuscript(md_path)
         # Image base directory: same folder as the manuscript
         self.image_base_dir = os.path.dirname(os.path.abspath(md_path))
@@ -1616,7 +1683,7 @@ class BookBuilder:
                 else:
                     # Placeholder pages
                     r._ensure_recto()
-                    r._ctxt(PAGE_H - MARGIN_TOP - 30, 'Contents', 'GarB', 22, C_BODY)
+                    r._ctxt(PAGE_H - MARGIN_TOP - 30, r.toc_title, 'GarB', 22, C_BODY)
                     r._finish_page()
                     r._new_page(suppress=True)
                     r._finish_page()
