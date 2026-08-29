@@ -397,6 +397,14 @@ def parse_manuscript_generic(filepath):
     blocks = []
     i = 0
     PLACEHOLDER_RE = re.compile(r'^\[Paste .* text here\]$')
+    
+    while i < len(paras):
+        p = paras[i].strip()
+        if not p:
+            i += 1
+            continue
+        
+        # # Heading (Part, Chapter, Prologue, Epilogue, back matter)
         if p.startswith('# '):
             title = p[2:].strip()
             subtitle = ''
