@@ -280,7 +280,7 @@ def typeset(req: TypesetRequest):
 
         # Route to the correct builder based on template
         if req.template == 'portrait':
-            builder = BookBuilder(md_path, output_path)
+            builder = BookBuilder(md_path, output_path, language=req.language)
         else:
             builder = GenericBookBuilder(
                 md_path, output_path,
@@ -288,6 +288,7 @@ def typeset(req: TypesetRequest):
                 subtitle=req.subtitle,
                 author=req.author,
                 chapter_end_ornament=req.chapter_end_ornament,
+                language=req.language,
             )
         
         block_types = ",".join(b.get('type','?') for b in builder.blocks)
