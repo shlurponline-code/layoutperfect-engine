@@ -5,9 +5,9 @@ FastAPI wrapper around the typesetting engine.
 Deploy on Railway, Render, or Fly.io.
 
 Endpoints:
-  POST /typeset     — takes manuscript + config, returns PDF + page count
-  POST /epub        — takes manuscript + config, returns ePub file
-  GET  /health      — health check
+  POST /typeset     â takes manuscript + config, returns PDF + page count
+  POST /epub        â takes manuscript + config, returns ePub file
+  GET  /health      â health check
 """
 
 import os
@@ -26,7 +26,7 @@ app = FastAPI(
     description="Manuscript to print-ready PDF engine"
 )
 
-# CORS — allow Base44 to call this
+# CORS â allow Base44 to call this
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Lock down to layoutperfect.com and base44.com in production
@@ -34,7 +34,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Auth — simple API key for now
+# Auth â simple API key for now
 API_KEY = os.environ.get("LP_API_KEY", "lp-dev-key-change-me")
 
 
@@ -43,7 +43,7 @@ def check_auth(api_key: str):
         raise HTTPException(status_code=401, detail="Invalid API key")
 
 
-# ── Request/Response models ──────────────────────────
+# ââ Request/Response models ââââââââââââââââââââââââââ
 
 class TypesetRequest(BaseModel):
     api_key: str
@@ -106,7 +106,7 @@ class EpubRequest(BaseModel):
     language: str = "en-GB"
 
 
-# ── Endpoints ────────────────────────────────────────
+# ââ Endpoints ââââââââââââââââââââââââââââââââââââââââ
 
 @app.get("/health")
 def health():
@@ -275,6 +275,7 @@ def typeset(req: TypesetRequest):
         engine.CH_TITLE_SZ = req.chapter_title_size_pt
         engine.TEXT_ALIGNMENT = req.text_alignment
         engine.HYPHEN_LANGUAGE = req.language
+        engine.set_language_fonts(req.language)
 
         # Apply trim size from user selection (supports all KDP trim sizes)
         engine.set_trim_size(req.trim_width, req.trim_height)
@@ -403,7 +404,7 @@ def word_count(req: dict):
 
     words = len(text.split())
     chapters = text.count("\n## ") + text.count("\n# ")
-    profiles = text.count("\n• • •")
+    profiles = text.count("\nâ¢ â¢ â¢")
 
     return {
         "word_count": words,
