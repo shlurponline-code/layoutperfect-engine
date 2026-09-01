@@ -1,0 +1,22 @@
+services:
+  api:
+    image: python:3.12-slim
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - LP_API_KEY=lp-dev-key-change-me
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./:/app
+    command: >
+      bash -c "apt-get update && apt-get install -y --no-install-recommends fonts-freefont-ttf && rm -rf /var/lib/apt/lists/*
+      && pip install --no-cache-dir -r requirements.txt
+      && uvicorn api_server:app --host 0.0.0.0 --port 3000 --reload"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
