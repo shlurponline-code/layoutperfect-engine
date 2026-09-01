@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Layout Perfect Typesetting Engine — "From These Streets" Template
+Layout Perfect Typesetting Engine â "From These Streets" Template
 =================================================================
 Biographical/portrait profile layout for D&H Publishing International.
 5.5 x 8.5 inch trim, mirrored margins, warm brown accents, centred folios,
@@ -25,7 +25,7 @@ IMG_SPACING = 0.4 * 72 / 2.54  # 0.4cm in points
 CAPTION_GAP = 0.15 * 72 / 2.54  # 0.15cm in points
 IMG_HEIGHT_CAP = 0.6  # max 60% of text block height
 
-# ── Dimensions ──────────────────────────────────────────────────────
+# ââ Dimensions ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 PAGE_W = 5.5 * inch
 PAGE_H = 8.5 * inch
 # D&H house margins: 2.54cm top/bottom, 1.54cm left, 1.6cm right, 1cm gutter
@@ -47,14 +47,14 @@ def set_trim_size(width_in, height_in):
     HEADER_Y = PAGE_H - 0.5 * inch
     FOOTER_Y = 0.5 * inch
 
-# ── Colours ─────────────────────────────────────────────────────────
+# ââ Colours âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 C_BODY    = HexColor('#2C2C2C')
 C_BROWN   = HexColor('#8B7355')
 C_GREY    = HexColor('#999999')
 C_MID     = HexColor('#888888')
 C_DARK    = HexColor('#4A4A4A')
 
-# ── Fonts ───────────────────────────────────────────────────────────
+# ââ Fonts âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 FD = '/usr/share/fonts/truetype/freefont'
 pdfmetrics.registerFont(TTFont('Gar',   f'{FD}/FreeSerif.ttf'))
 pdfmetrics.registerFont(TTFont('GarB',  f'{FD}/FreeSerifBold.ttf'))
@@ -62,6 +62,107 @@ pdfmetrics.registerFont(TTFont('GarI',  f'{FD}/FreeSerifItalic.ttf'))
 pdfmetrics.registerFont(TTFont('GarBI', f'{FD}/FreeSerifBoldItalic.ttf'))
 pdfmetrics.registerFontFamily('Gar', normal='Gar', bold='GarB',
                               italic='GarI', boldItalic='GarBI')
+
+# ── Multilingual support ─────────────────────────────────────────────
+_CJK_FONT_CANDIDATES = [
+    '/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc',
+    '/usr/share/fonts/truetype/noto/NotoSerifCJK-Regular.ttc',
+]
+_CJK_FONT_CANDIDATES_BOLD = [
+    '/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc',
+    '/usr/share/fonts/truetype/noto/NotoSerifCJK-Bold.ttc',
+]
+
+def _find_cjk_font(bold=False):
+    candidates = _CJK_FONT_CANDIDATES_BOLD if bold else _CJK_FONT_CANDIDATES
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return None
+
+QUOTE_STYLES = {
+    'en': {'open': '\u201C', 'close': '\u201D', 'single_open': '\u2018', 'single_close': '\u2019'},
+    'fr': {'open': '\u00AB\u00A0', 'close': '\u00A0\u00BB', 'single_open': '\u2018', 'single_close': '\u2019'},
+    'de': {'open': '\u201E', 'close': '\u201C', 'single_open': '\u201A', 'single_close': '\u2018'},
+    'it': {'open': '\u00AB', 'close': '\u00BB', 'single_open': '\u2018', 'single_close': '\u2019'},
+    'es': {'open': '\u00AB', 'close': '\u00BB', 'single_open': '\u2018', 'single_close': '\u2019'},
+    'nl': {'open': '\u201C', 'close': '\u201D', 'single_open': '\u2018', 'single_close': '\u2019'},
+    'ja': {'open': '\u300C', 'close': '\u300D', 'single_open': '\u300E', 'single_close': '\u300F'},
+}
+
+LABELS = {
+    'en': {'chapter': 'Chapter', 'page': 'Page', 'contents': 'Contents', 'bibliography': 'Bibliography', 'glossary': 'Glossary', 'index': 'Index', 'acknowledgements': 'Acknowledgements', 'foreword': 'Foreword'},
+    'fr': {'chapter': 'Chapitre', 'page': 'Page', 'contents': 'Table des mati\u00e8res', 'bibliography': 'Bibliographie', 'glossary': 'Glossaire', 'index': 'Index', 'acknowledgements': 'Remerciements', 'foreword': 'Avant-propos'},
+    'de': {'chapter': 'Kapitel', 'page': 'Seite', 'contents': 'Inhaltsverzeichnis', 'bibliography': 'Literaturverzeichnis', 'glossary': 'Glossar', 'index': 'Register', 'acknowledgements': 'Danksagung', 'foreword': 'Vorwort'},
+    'it': {'chapter': 'Capitolo', 'page': 'Pagina', 'contents': 'Indice', 'bibliography': 'Bibliografia', 'glossary': 'Glossario', 'index': 'Indice analitico', 'acknowledgements': 'Ringraziamenti', 'foreword': 'Prefazione'},
+    'es': {'chapter': 'Cap\u00edtulo', 'page': 'P\u00e1gina', 'contents': '\u00cdndice', 'bibliography': 'Bibliograf\u00eda', 'glossary': 'Glosario', 'index': '\u00cdndice anal\u00edtico', 'acknowledgements': 'Agradecimientos', 'foreword': 'Pr\u00f3logo'},
+    'nl': {'chapter': 'Hoofdstuk', 'page': 'Pagina', 'contents': 'Inhoudsopgave', 'bibliography': 'Bibliografie', 'glossary': 'Woordenlijst', 'index': 'Register', 'acknowledgements': 'Dankwoord', 'foreword': 'Voorwoord'},
+    'ja': {'chapter': '\u7b2c{n}\u7ae0', 'page': '\u30da\u30fc\u30b8', 'contents': '\u76ee\u6b21', 'bibliography': '\u53c2\u8003\u6587\u732e', 'glossary': '\u7528\u8a9e\u96c6', 'index': '\u7d20\u5f15', 'acknowledgements': '\u8b1d\u8f9e', 'foreword': '\u5e8f\u6587'},
+}
+
+def is_japanese(lang):
+    return lang is not None and lang.startswith('ja')
+
+def _lang_base(lang):
+    if not lang:
+        return 'en'
+    return lang.split('_')[0]
+
+def get_quote_style(lang='en_GB'):
+    return QUOTE_STYLES.get(_lang_base(lang), QUOTE_STYLES['en'])
+
+def get_label(lang, key, n=None):
+    base = _lang_base(lang)
+    labels = LABELS.get(base, LABELS['en'])
+    label = labels.get(key, LABELS['en'].get(key, key))
+    if n is not None and '{n}' in label:
+        label = label.replace('{n}', str(n))
+    return label
+
+def convert_quotation_marks(text, lang='en_GB'):
+    """Convert straight double quotes to language-specific typographic marks.
+    Existing curly quotes, guillemets, etc. are left untouched."""
+    style = get_quote_style(lang)
+    result = []
+    in_double = False
+    for ch in text:
+        if ch == '"':
+            if not in_double:
+                result.append(style['open'])
+                in_double = True
+            else:
+                result.append(style['close'])
+                in_double = False
+        else:
+            result.append(ch)
+    return ''.join(result)
+
+def set_language_fonts(lang='en_GB'):
+    """Switch registered fonts to CJK-compatible versions for Japanese."""
+    if is_japanese(lang):
+        reg = _find_cjk_font(bold=False)
+        bold = _find_cjk_font(bold=True)
+        if reg:
+            pdfmetrics.registerFont(TTFont('Gar', reg, subfontIndex=0))
+            pdfmetrics.registerFont(TTFont('GarI', reg, subfontIndex=0))
+            if bold:
+                pdfmetrics.registerFont(TTFont('GarB', bold, subfontIndex=0))
+                pdfmetrics.registerFont(TTFont('GarBI', bold, subfontIndex=0))
+            else:
+                pdfmetrics.registerFont(TTFont('GarB', reg, subfontIndex=0))
+                pdfmetrics.registerFont(TTFont('GarBI', reg, subfontIndex=0))
+            pdfmetrics.registerFontFamily('Gar', normal='Gar', bold='GarB',
+                                          italic='GarI', boldItalic='GarBI')
+        else:
+            print('WARNING: CJK fonts not found')
+    else:
+        pdfmetrics.registerFont(TTFont('Gar', f'{FD}/FreeSerif.ttf'))
+        pdfmetrics.registerFont(TTFont('GarB', f'{FD}/FreeSerifBold.ttf'))
+        pdfmetrics.registerFont(TTFont('GarI', f'{FD}/FreeSerifItalic.ttf'))
+        pdfmetrics.registerFont(TTFont('GarBI', f'{FD}/FreeSerifBoldItalic.ttf'))
+        pdfmetrics.registerFontFamily('Gar', normal='Gar', bold='GarB',
+                                      italic='GarI', boldItalic='GarBI')
+
 
 BODY_SZ = 12
 BODY_LD = 18
@@ -88,7 +189,7 @@ def get_hyphenator(lang='en_GB'):
     return _hyphenator_cache[lang]
 
 def add_soft_hyphens(text, lang='en_GB'):
-    if not HYPHENATE:
+    if not HYPHENATE or is_japanese(lang):
         return text
     hyphenator = get_hyphenator(lang)
     if not hyphenator:
@@ -105,9 +206,9 @@ def add_soft_hyphens(text, lang='en_GB'):
     return ' '.join(result)
 
 
-# ═══════════════════════════════════════════════════════════════════
-# PARAGRAPH JOINER — key fix for hard-wrapped markdown
-# ═══════════════════════════════════════════════════════════════════
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# PARAGRAPH JOINER â key fix for hard-wrapped markdown
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 def join_paragraphs(lines):
     """Join hard-wrapped markdown lines into proper paragraphs.
@@ -126,7 +227,7 @@ def join_paragraphs(lines):
                 current = []
             continue
         
-        # Image references — always their own block
+        # Image references â always their own block
         if IMAGE_PATTERN.match(stripped):
             if current:
                 paragraphs.append(' '.join(current))
@@ -134,8 +235,8 @@ def join_paragraphs(lines):
             paragraphs.append(stripped)
             continue
         
-        # Special markers — always their own block
-        if stripped in ('• • •', '❦') or stripped.startswith('--- '):
+        # Special markers â always their own block
+        if stripped in ('â¢ â¢ â¢', 'â¦') or stripped.startswith('--- '):
             if current:
                 paragraphs.append(' '.join(current))
                 current = []
@@ -160,17 +261,17 @@ def join_paragraphs(lines):
             paragraphs.append(stripped)
             continue
         
-        # Tagline lines (italic dates like *1610--1644 · Broughton · Astronomer*)
+        # Tagline lines (italic dates like *1610--1644 Â· Broughton Â· Astronomer*)
         if (stripped.startswith('*') and stripped.endswith('*') 
             and not stripped.startswith('**')
-            and '·' in stripped and len(stripped) < 100):
+            and 'Â·' in stripped and len(stripped) < 100):
             if current:
                 paragraphs.append(' '.join(current))
                 current = []
             paragraphs.append(stripped)
             continue
         
-        # Normal text — accumulate
+        # Normal text â accumulate
         current.append(stripped)
     
     if current:
@@ -179,9 +280,9 @@ def join_paragraphs(lines):
     return paragraphs
 
 
-# ═══════════════════════════════════════════════════════════════════
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 # MANUSCRIPT PARSER
-# ═══════════════════════════════════════════════════════════════════
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 def parse_manuscript(filepath):
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -189,11 +290,11 @@ def parse_manuscript(filepath):
     
     blocks = []
     
-    # ── Locate key sections by line number ──
-    # Title page: lines 1-16 (before first ❦)
+    # ââ Locate key sections by line number ââ
+    # Title page: lines 1-16 (before first â¦)
     blocks.append({'type': 'title_page'})
     
-    # Copyright: between second "FROM THESE STREETS" and next ❦
+    # Copyright: between second "FROM THESE STREETS" and next â¦
     cp_lines = []
     found_second_title = False
     for j, line in enumerate(raw_lines):
@@ -201,7 +302,7 @@ def parse_manuscript(filepath):
             found_second_title = True
             continue
         if found_second_title:
-            if line.strip() == '❦':
+            if line.strip() == 'â¦':
                 break
             cp_lines.append(line)
     blocks.append({'type': 'copyright_page', 'lines': cp_lines})
@@ -226,7 +327,7 @@ def parse_manuscript(filepath):
     # TOC placeholder
     blocks.append({'type': 'toc'})
     
-    # ── Find Introduction ──
+    # ââ Find Introduction ââ
     intro_start = None
     for j, line in enumerate(raw_lines):
         if line.strip() == '# Introduction':
@@ -272,19 +373,19 @@ def parse_manuscript(filepath):
             # For Afterword, collect everything until end markers
             while i < len(paras):
                 pp = paras[i].strip()
-                if pp.startswith('--- ') or pp == '❦':
+                if pp.startswith('--- ') or pp == 'â¦':
                     break
                 if not is_afterword:
                     # Normal chapter: stop at first profile marker
-                    if (pp == '• • •'
+                    if (pp == 'â¢ â¢ â¢'
                         or (pp.startswith('**') and pp.endswith('**') and len(pp) < 80
                             and '(' not in pp)):
                         break
-                    if pp.startswith('*') and pp.endswith('*') and '·' in pp:
+                    if pp.startswith('*') and pp.endswith('*') and 'Â·' in pp:
                         break
                 else:
                     # Afterword: skip separators but include everything else
-                    if pp == '• • •':
+                    if pp == 'â¢ â¢ â¢':
                         i += 1
                         continue
                     if pp.startswith('## ') or pp.startswith('# '):
@@ -310,16 +411,16 @@ def parse_manuscript(filepath):
             if i < len(paras):
                 candidate = paras[i].strip()
                 if (candidate.startswith('*') and candidate.endswith('*')
-                    and not candidate.startswith('**') and '·' not in candidate):
+                    and not candidate.startswith('**') and 'Â·' not in candidate):
                     subtitle = candidate.strip('*').strip('\\')
                     i += 1
             
             while i < len(paras):
                 pp = paras[i].strip()
-                if (pp == '• • •' or pp.startswith('--- ') or pp == '❦'
+                if (pp == 'â¢ â¢ â¢' or pp.startswith('--- ') or pp == 'â¦'
                     or (pp.startswith('**') and pp.endswith('**') and len(pp) < 80)):
                     break
-                if pp.startswith('*') and pp.endswith('*') and '·' in pp:
+                if pp.startswith('*') and pp.endswith('*') and 'Â·' in pp:
                     break
                 intro.append(pp)
                 i += 1
@@ -333,11 +434,11 @@ def parse_manuscript(filepath):
             continue
         
         # Profile separator
-        if p == '• • •':
+        if p == 'â¢ â¢ â¢':
             i += 1
             continue
         
-        # Profile name — but NOT inline bold names in Afterword body,
+        # Profile name â but NOT inline bold names in Afterword body,
         # and NOT the back page URL or other non-profile bold text
         if (p.startswith('**') and p.endswith('**') and len(p) < 80
             and not p.startswith('**FROM') and not p.startswith('**A Note')
@@ -353,14 +454,14 @@ def parse_manuscript(filepath):
             if i < len(paras):
                 candidate = paras[i].strip()
                 if (candidate.startswith('*') and candidate.endswith('*')
-                    and not candidate.startswith('**') and '·' in candidate):
+                    and not candidate.startswith('**') and 'Â·' in candidate):
                     tagline = candidate.strip('*').strip('\\')
                     i += 1
             
             # Body paragraphs
             while i < len(paras):
                 pp = paras[i].strip()
-                if (pp == '• • •' or pp.startswith('--- ') or pp == '❦'
+                if (pp == 'â¢ â¢ â¢' or pp.startswith('--- ') or pp == 'â¦'
                     or (pp.startswith('**') and pp.endswith('**') and len(pp) < 80)
                     or pp.startswith('# ') or pp.startswith('## ')):
                     break
@@ -375,8 +476,8 @@ def parse_manuscript(filepath):
             })
             continue
         
-        # End markers — skip
-        if p.startswith('--- ') or p == '❦':
+        # End markers â skip
+        if p.startswith('--- ') or p == 'â¦':
             i += 1
             continue
         
@@ -393,34 +494,34 @@ TOC_TITLES = {
     'en_GB': 'Table of Contents',
     'en_US': 'Table of Contents',
     'en': 'Table of Contents',
-    'fr': 'Table des matières',
+    'fr': 'Table des matiÃ¨res',
     'de': 'Inhaltsverzeichnis',
-    'es': 'Índice',
+    'es': 'Ãndice',
     'it': 'Indice',
-    'pt': 'Índice',
-    'pt_BR': 'Sumário',
+    'pt': 'Ãndice',
+    'pt_BR': 'SumÃ¡rio',
     'nl': 'Inhoudsopgave',
-    'sv': 'Innehållsförteckning',
+    'sv': 'InnehÃ¥llsfÃ¶rteckning',
     'da': 'Indholdsfortegnelse',
     'nb': 'Innholdsfortegnelse',
     'nn': 'Innhaldsfortegnelse',
-    'fi': 'Sisällysluettelo',
-    'pl': 'Spis treści',
+    'fi': 'SisÃ¤llysluettelo',
+    'pl': 'Spis treÅci',
     'cs': 'Obsah',
     'sk': 'Obsah',
-    'hu': 'Tartalomjegyzék',
+    'hu': 'TartalomjegyzÃ©k',
     'ro': 'Cuprins',
-    'ru': 'Содержание',
-    'uk': 'Зміст',
-    'el': 'Περιεχόμενα',
-    'tr': 'İçindekiler',
-    'ar': 'فهرس المحتويات',
-    'he': 'תוכן העניינים',
-    'ja': '目次',
-    'zh': '目录',
-    'zh_CN': '目录',
-    'zh_TW': '目錄',
-    'ko': '차례',
+    'ru': 'Ð¡Ð¾Ð´ÐµÑÐ¶Ð°Ð½Ð¸Ðµ',
+    'uk': 'ÐÐ¼ÑÑÑ',
+    'el': 'Î ÎµÏÎ¹ÎµÏÏÎ¼ÎµÎ½Î±',
+    'tr': 'Ä°Ã§indekiler',
+    'ar': 'ÙÙØ±Ø³ Ø§ÙÙØ­ØªÙÙØ§Øª',
+    'he': '×ª××× ××¢× ××× ××',
+    'ja': 'ç®æ¬¡',
+    'zh': 'ç®å½',
+    'zh_CN': 'ç®å½',
+    'zh_TW': 'ç®é',
+    'ko': 'ì°¨ë¡',
 }
 
 _TOC_PLACEHOLDER_TEXTS = set(TOC_TITLES.values()) | {'Contents'}
@@ -543,9 +644,9 @@ def parse_manuscript_generic(filepath):
     return blocks
 
 
-# ═══════════════════════════════════════════════════════════════════
-# GENERIC BOOK BUILDER — works with any manuscript structure
-# ═══════════════════════════════════════════════════════════════════
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# GENERIC BOOK BUILDER â works with any manuscript structure
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 class GenericBookBuilder:
     """Builds print-ready PDFs from any markdown manuscript.
@@ -567,6 +668,13 @@ class GenericBookBuilder:
         self.language = language
         self.toc_title = get_toc_title(language)
         self.blocks = parse_manuscript_generic(md_path)
+        for _blk in self.blocks:
+            if 'body' in _blk:
+                for _item in _blk['body']:
+                    if _item.get('type') == 'para':
+                        _item['text'] = convert_quotation_marks(_item['text'], language)
+            elif _blk.get('type') == 'para':
+                _blk['text'] = convert_quotation_marks(_blk['text'], language)
         self.image_base_dir = os.path.dirname(os.path.abspath(md_path))
     
     def _render(self, path, toc_entries=None):
@@ -576,7 +684,7 @@ class GenericBookBuilder:
         r.chapter_end_ornament = self.chapter_end_ornament
         r.toc_title = self.toc_title
         
-        # ── Front matter (generic, driven by title/author) ──
+        # ââ Front matter (generic, driven by title/author) ââ
         # Title page
         r._new_page(suppress=True)
         y = PAGE_H - 2.2 * inch
@@ -693,12 +801,12 @@ class GenericBookBuilder:
             r._new_page(suppress=True)
             r._finish_page()
         
-        # ── Body content ──
+        # ââ Body content ââ
         for i, blk in enumerate(self.blocks):
             t = blk['type']
             
             if t == 'part':
-                # Part title page — centred, recto, no body text
+                # Part title page â centred, recto, no body text
                 r._ensure_recto()
                 r.is_front_matter = False
                 r.toc_entries.append((blk['title'], r.page_num, 0))
@@ -725,7 +833,7 @@ class GenericBookBuilder:
                     elif item['type'] == 'scene_break':
                         r._check_page(40)
                         r.current_y -= 12
-                        r._ctxt_block(r.current_y, '•   •   •', 'Gar', 10, C_MID)
+                        r._ctxt_block(r.current_y, 'â¢   â¢   â¢', 'Gar', 10, C_MID)
                         r.current_y -= 20
                     elif item['type'] == 'image':
                         r._draw_content(item['text'])
@@ -738,7 +846,7 @@ class GenericBookBuilder:
                 if i == len(self.blocks) - 1:
                     r.render_chapter_end()
         
-        # ── Back page ──
+        # ââ Back page ââ
         r._ensure_recto()
         y = PAGE_H / 2 + 20
         r._ctxt(y, self.publisher_url, 'GarB', 13, C_BODY); y -= 22
@@ -823,7 +931,7 @@ class BookRenderer:
         self.image_log = []  # [(filename, page, size_hint, dpi, status)]
         self.header_text = ''  # set by builder
         self.toc_title = 'Table of Contents'  # localised by builder
-        self.chapter_end_ornament = 'fleuron'  # fleuron | divider | none — used in running header
+        self.chapter_end_ornament = 'fleuron'  # fleuron | divider | none â used in running header
         
     def _margins(self):
         if self.page_num % 2 == 1:  # Recto: gutter left
@@ -873,8 +981,8 @@ class BookRenderer:
     def _ensure_recto(self):
         """Finish current page and ensure next is recto (odd)."""
         self._finish_page()
-        if self.page_num % 2 == 0:  # on verso, add blank recto? No — need blank verso
-            # Actually: if on even page (verso), next page is odd (recto) — good
+        if self.page_num % 2 == 0:  # on verso, add blank recto? No â need blank verso
+            # Actually: if on even page (verso), next page is odd (recto) â good
             pass
         else:
             # On odd (recto), need to add a blank verso first
@@ -894,15 +1002,15 @@ class BookRenderer:
         self.c.setFillColor(color)
         self.c.drawCentredString(self._lm() + self._tw() / 2, y, text)
     
-    def _ornament(self, y, ch='❦', sz=18, color=C_BROWN):
+    def _ornament(self, y, ch='â¦', sz=18, color=C_BROWN):
         self._ctxt(y, ch, 'Gar', sz, color)
     
     def _divider(self, y, style='end'):
-        ch = '✻' if style == 'star' else '❧'
-        self._ctxt(y, f'— {ch} —', 'Gar', 16, C_BROWN)
+        ch = 'â»' if style == 'star' else 'â§'
+        self._ctxt(y, f'â {ch} â', 'Gar', 16, C_BROWN)
     
     def _dot_sep(self, y):
-        self._ctxt_block(y, '•   •   •', 'Gar', 10, C_MID)
+        self._ctxt_block(y, 'â¢   â¢   â¢', 'Gar', 10, C_MID)
         return y - 8
     
     def _wrap(self, text, font, sz, max_w):
@@ -1014,12 +1122,12 @@ class BookRenderer:
     
     def _draw_image(self, caption, img_path, size_hint='full'):
         """Render an image with caption. Supports six placement modes:
-        full    — spans text width, inline in flow (default)
-        half    — half text width, centred, inline
-        quarter — quarter text width, centred, inline
-        page    — full page, no header/folio, caption overlaid at bottom
-        bleed   — edge-to-edge, no margins/header/folio
-        facing  — full page on next recto/verso to face the text
+        full    â spans text width, inline in flow (default)
+        half    â half text width, centred, inline
+        quarter â quarter text width, centred, inline
+        page    â full page, no header/folio, caption overlaid at bottom
+        bleed   â edge-to-edge, no margins/header/folio
+        facing  â full page on next recto/verso to face the text
         """
         # Resolve path
         full_path = os.path.join(self.image_base_dir, img_path) if self.image_base_dir else img_path
@@ -1042,7 +1150,7 @@ class BookRenderer:
             lm = self._lm()
             self.c.setFont('Gar', BODY_SZ)
             self.c.setFillColor(HexColor('#CC0000'))
-            self.c.drawString(lm, self.current_y, f'[UNSUPPORTED FORMAT: {img_path} — use JPG, PNG or TIFF]')
+            self.c.drawString(lm, self.current_y, f'[UNSUPPORTED FORMAT: {img_path} â use JPG, PNG or TIFF]')
             self.current_y -= BODY_LD
             self.image_log.append((img_path, self.page_num, size_hint, 0, 'UNSUPPORTED'))
             return
@@ -1056,27 +1164,27 @@ class BookRenderer:
             lm = self._lm()
             self.c.setFont('Gar', BODY_SZ)
             self.c.setFillColor(HexColor('#CC0000'))
-            self.c.drawString(lm, self.current_y, f'[IMAGE ERROR: {img_path} — {str(e)}]')
+            self.c.drawString(lm, self.current_y, f'[IMAGE ERROR: {img_path} â {str(e)}]')
             self.current_y -= BODY_LD
             self.image_log.append((img_path, self.page_num, size_hint, 0, 'ERROR'))
             return
         
-        # ── FULL PAGE mode ──
+        # ââ FULL PAGE mode ââ
         if size_hint == 'page':
             self._draw_image_page(full_path, caption, native_w, native_h, bleed=False)
             return
         
-        # ── BLEED mode (edge to edge, no margins) ──
+        # ââ BLEED mode (edge to edge, no margins) ââ
         if size_hint == 'bleed':
             self._draw_image_page(full_path, caption, native_w, native_h, bleed=True)
             return
         
-        # ── FACING mode (full page on facing page) ──
+        # ââ FACING mode (full page on facing page) ââ
         if size_hint == 'facing':
             self._draw_image_facing(full_path, caption, native_w, native_h)
             return
         
-        # ── INLINE modes (full, half, quarter) ──
+        # ââ INLINE modes (full, half, quarter) ââ
         tw = self._tw()
         text_height = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM
         
@@ -1104,7 +1212,7 @@ class BookRenderer:
         dpi_status = 'OK'
         if effective_dpi < 200:
             dpi_status = 'LOW RES'
-            print(f"WARNING: {img_path} will print at {effective_dpi:.0f} DPI — minimum recommended is 300 DPI")
+            print(f"WARNING: {img_path} will print at {effective_dpi:.0f} DPI â minimum recommended is 300 DPI")
         
         # Calculate caption height
         caption_sz = BODY_SZ - CAPTION_SZ_OFFSET
@@ -1157,16 +1265,16 @@ class BookRenderer:
         if self.current_y < PAGE_H - MARGIN_TOP - 20:
             self._finish_page()
         else:
-            # We're at the top of a fresh page already — just need to
+            # We're at the top of a fresh page already â just need to
             # suppress the header that _finish_page would draw
             pass
         
-        # Start a dedicated image page — suppress header and folio
+        # Start a dedicated image page â suppress header and folio
         self._new_page(suppress=True)
         self._suppress_folio_this_page = True
         
         if bleed:
-            # Edge to edge — fill entire page
+            # Edge to edge â fill entire page
             target_w = PAGE_W
             target_h = PAGE_H
         else:
@@ -1240,7 +1348,7 @@ class BookRenderer:
         self.image_log.append((os.path.basename(full_path), self.page_num,
                               mode_str, round(effective_dpi), dpi_status))
         
-        # This image page is complete — start a fresh page for following text
+        # This image page is complete â start a fresh page for following text
         # (no header/folio on the image page since suppress_hdr is True
         # and _suppress_folio_this_page is True)
         self._finish_page()
@@ -1259,7 +1367,7 @@ class BookRenderer:
         # If we're on a verso (even), we need to add a blank recto first,
         # then the image goes on the following verso
         if self.page_num % 2 == 0:
-            # Currently on verso — add blank recto, then image on next verso
+            # Currently on verso â add blank recto, then image on next verso
             self._new_page(suppress=True)
             self._draw_folio()
             self._finish_page()
@@ -1342,9 +1450,9 @@ class BookRenderer:
         else:
             self._draw_para(text)
     
-    # ═══════════════════════════════════════════════════════════════
+    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     # PAGE TYPES
-    # ═══════════════════════════════════════════════════════════════
+    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     
     def render_title(self):
         self._new_page(suppress=True)
@@ -1428,7 +1536,7 @@ class BookRenderer:
         tw = self._tw()
 
         # Reserve space for page number on the right (e.g. "210" max width)
-        pg_num_reserve = 28  # points — enough for a 3-digit page number
+        pg_num_reserve = 28  # points â enough for a 3-digit page number
         title_max_w = tw - pg_num_reserve - 12  # 12pt gap between title and leaders
 
         for title, page, level in entries:
@@ -1559,9 +1667,9 @@ class BookRenderer:
         if ornament == 'none':
             pass
         elif ornament == 'divider':
-            self._ctxt_block(self.current_y, '— ❧ —', 'Gar', 16, C_BROWN)
-        else:  # fleuron (default) — the decorative flourish
-            self._ctxt_block(self.current_y, '❦', 'Gar', 18, C_BROWN)
+            self._ctxt_block(self.current_y, 'â â§ â', 'Gar', 16, C_BROWN)
+        else:  # fleuron (default) â the decorative flourish
+            self._ctxt_block(self.current_y, 'â¦', 'Gar', 18, C_BROWN)
         self._finish_page()
     
     def render_profile(self, name, tagline, body, is_first=False):
@@ -1594,7 +1702,7 @@ class BookRenderer:
             self._draw_content(para)
     
     def render_also_available(self):
-        """Also available page — nod to Not Manchester."""
+        """Also available page â nod to Not Manchester."""
         self._ensure_recto()
         y = PAGE_H / 2 + 80
         
@@ -1643,9 +1751,9 @@ class BookRenderer:
         self._finish_page()
 
 
-# ═══════════════════════════════════════════════════════════════════
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 # TWO-PASS BUILDER
-# ═══════════════════════════════════════════════════════════════════
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 class BookBuilder:
     def __init__(self, md_path, output_path, language='en_GB'):
@@ -1654,6 +1762,13 @@ class BookBuilder:
         self.language = language
         self.toc_title = get_toc_title(language)
         self.blocks = parse_manuscript(md_path)
+        for _blk in self.blocks:
+            if 'body' in _blk:
+                for _item in _blk['body']:
+                    if _item.get('type') == 'para':
+                        _item['text'] = convert_quotation_marks(_item['text'], language)
+            elif _blk.get('type') == 'para':
+                _blk['text'] = convert_quotation_marks(_blk['text'], language)
         # Image base directory: same folder as the manuscript
         self.image_base_dir = os.path.dirname(os.path.abspath(md_path))
     
@@ -1739,14 +1854,14 @@ class BookBuilder:
             errors = 0
             for fname, page, hint, dpi, status in self._last_image_log:
                 if status == 'OK':
-                    print(f"  {fname:40s} placed p.{page} ({hint} width, {dpi} DPI) ✓")
+                    print(f"  {fname:40s} placed p.{page} ({hint} width, {dpi} DPI) â")
                     placed += 1
                 elif status == 'LOW RES':
-                    print(f"  {fname:40s} placed p.{page} ({hint} width, {dpi} DPI) ⚠ LOW RES")
+                    print(f"  {fname:40s} placed p.{page} ({hint} width, {dpi} DPI) â  LOW RES")
                     placed += 1
                     warnings += 1
                 else:
-                    print(f"  {fname:40s} {status} ✗")
+                    print(f"  {fname:40s} {status} â")
                     errors += 1
             print(f"\n  Total images: {len(self._last_image_log)}")
             print(f"  Placed: {placed}")
