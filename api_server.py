@@ -5,9 +5,9 @@ FastAPI wrapper around the typesetting engine.
 Deploy on Railway, Render, or Fly.io.
 
 Endpoints:
-  POST /typeset     â takes manuscript + config, returns PDF + page count
-  POST /epub        â takes manuscript + config, returns ePub file
-  GET  /health      â health check
+  POST /typeset     Ã¢ÂÂ takes manuscript + config, returns PDF + page count
+  POST /epub        Ã¢ÂÂ takes manuscript + config, returns ePub file
+  GET  /health      Ã¢ÂÂ health check
 """
 
 import os
@@ -26,7 +26,7 @@ app = FastAPI(
     description="Manuscript to print-ready PDF engine"
 )
 
-# CORS â allow Base44 to call this
+# CORS Ã¢ÂÂ allow Base44 to call this
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Lock down to layoutperfect.com and base44.com in production
@@ -34,7 +34,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Auth â simple API key for now
+# Auth Ã¢ÂÂ simple API key for now
 API_KEY = os.environ.get("LP_API_KEY", "lp-dev-key-change-me")
 
 
@@ -43,7 +43,7 @@ def check_auth(api_key: str):
         raise HTTPException(status_code=401, detail="Invalid API key")
 
 
-# ââ Request/Response models ââââââââââââââââââââââââââ
+# Ã¢ÂÂÃ¢ÂÂ Request/Response models Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 class TypesetRequest(BaseModel):
     api_key: str
@@ -106,7 +106,7 @@ class EpubRequest(BaseModel):
     language: str = "en-GB"
 
 
-# ââ Endpoints ââââââââââââââââââââââââââââââââââââââââ
+# Ã¢ÂÂÃ¢ÂÂ Endpoints Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 @app.get("/health")
 def health():
@@ -335,7 +335,7 @@ def typeset(req: TypesetRequest):
             from epub_builder import build_epub
             build_epub(md_path, epub_path, title=req.title, author=req.author,
                        publisher='D&H Publishing International', isbn='',
-                       language='en-GB', subtitle=req.subtitle)
+                       language=req.language.replace('_', '-') if req.language else 'en-GB', subtitle=req.subtitle)
             with open(epub_path, 'rb') as ef:
                 epub_bytes = ef.read()
             epub_b64 = base64.b64encode(epub_bytes).decode('utf-8')
@@ -404,7 +404,7 @@ def word_count(req: dict):
 
     words = len(text.split())
     chapters = text.count("\n## ") + text.count("\n# ")
-    profiles = text.count("\nâ¢ â¢ â¢")
+    profiles = text.count("\nÃ¢ÂÂ¢ Ã¢ÂÂ¢ Ã¢ÂÂ¢")
 
     return {
         "word_count": words,
