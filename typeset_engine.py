@@ -15,6 +15,7 @@ from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.utils import ImageReader
+from templates import TEMPLATES, draw_ornament, draw_scene_break, format_chapter_number
 
 # Supported image formats
 SUPPORTED_IMG = {'.jpg', '.jpeg', '.png', '.tiff', '.tif'}
@@ -62,6 +63,20 @@ pdfmetrics.registerFont(TTFont('GarI',  f'{FD}/FreeSerifItalic.ttf'))
 pdfmetrics.registerFont(TTFont('GarBI', f'{FD}/FreeSerifBoldItalic.ttf'))
 pdfmetrics.registerFontFamily('Gar', normal='Gar', bold='GarB',
                               italic='GarI', boldItalic='GarBI')
+
+# Sans-serif fonts (for Modernist, Thriller, Minimal, etc.)
+pdfmetrics.registerFont(TTFont('Sans',   f'{FD}/FreeSans.ttf'))
+pdfmetrics.registerFont(TTFont('SansB',  f'{FD}/FreeSansBold.ttf'))
+pdfmetrics.registerFont(TTFont('SansI',  f'{FD}/FreeSansOblique.ttf'))
+pdfmetrics.registerFont(TTFont('SansBI', f'{FD}/FreeSansBoldOblique.ttf'))
+pdfmetrics.registerFontFamily('Sans', normal='Sans', bold='SansB', italic='SansI', boldItalic='SansBI')
+
+# Monospace fonts (for Screenplay)
+pdfmetrics.registerFont(TTFont('Mono',   f'{FD}/FreeMono.ttf'))
+pdfmetrics.registerFont(TTFont('MonoB',  f'{FD}/FreeMonoBold.ttf'))
+pdfmetrics.registerFont(TTFont('MonoI',  f'{FD}/FreeMonoOblique.ttf'))
+pdfmetrics.registerFont(TTFont('MonoBI', f'{FD}/FreeMonoBoldOblique.ttf'))
+pdfmetrics.registerFontFamily('Mono', normal='Mono', bold='MonoB', italic='MonoI', boldItalic='MonoBI')
 
 # ── Multilingual support ─────────────────────────────────────────────
 _CJK_FONT_CANDIDATES = [
@@ -656,7 +671,8 @@ class GenericBookBuilder:
                  subtitle='', publisher='D&H Publishing International',
                  publisher_url='www.dandhpublishing.com',
                  chapter_end_ornament='fleuron',
-                 language='en_GB'):
+                 language='en_GB',
+                 template='narrative'):
         self.md_path = md_path
         self.output_path = output_path
         self.title = title
@@ -666,6 +682,8 @@ class GenericBookBuilder:
         self.publisher_url = publisher_url
         self.chapter_end_ornament = chapter_end_ornament
         self.language = language
+        self.template = template
+        self.tpl = TEMPLATES.get(template, TEMPLATES['narrative'])
         self.toc_title = get_toc_title(language)
         self.blocks = parse_manuscript_generic(md_path)
         for _blk in self.blocks:
@@ -683,6 +701,10 @@ class GenericBookBuilder:
         r.header_text = self.title
         r.chapter_end_ornament = self.chapter_end_ornament
         r.toc_title = self.toc_title
+        r.tpl = self.tpl
+        r.author_name = self.author
+        r.current_chapter_title = ''
+        r.chapter_count = 0
         
         # ââ Front matter (generic, driven by title/author) ââ
         # Title page
@@ -946,28 +968,75 @@ class BookRenderer:
         return self._margins()[0]
     
     def _draw_header(self):
-        if self.suppress_hdr or self.is_front_matter:
+        tpl = getattr(self, 'tpl', {})
+        style = tpl.get('header_style', 'centered')
+        if self.suppress_hdr or self.is_front_matter or style == 'none':
             return
-        txt = self.header_text or 'Layout Perfect'
-        self.c.setFont('GarI', HDR_SZ)
-        self.c.setFillColor(C_GREY)
-        self.c.drawCentredString(PAGE_W/2, HEADER_Y, txt)
-        self.c.setStrokeColor(HexColor('#D0C8B8'))
-        self.c.setLineWidth(0.3)
+        hdr_font = tpl.get('header_font', 'GarI')
         l, r = self._margins()
-        self.c.line(l, HEADER_Y - 6, PAGE_W - r, HEADER_Y - 6)
+        
+        self.c.setFont(hdr_font, HDR_SZ)
+        self.c.setFillColor(C_GREY)
+        
+        if style == 'centered':
+            txt = self.header_text or 'Layout Perfect'
+            self.c.drawCentredString(PAGE_W/2, HEADER_Y, txt)
+        elif style == 'title_left_chapter_right':
+            self.c.drawString(l, HEADER_Y, self.header_text or '')
+            if getattr(self, 'current_chapter_title', ''):
+                self.c.drawRightString(PAGE_W - r, HEADER_Y, self.current_chapter_title)
+        elif style == 'author_left_chapter_right':
+            self.c.drawString(l, HEADER_Y, getattr(self, 'author_name', '') or '')
+            ch = getattr(self, 'chapter_count', 0)
+            if ch:
+                self.c.drawRightString(PAGE_W - r, HEADER_Y, str(ch))
+        elif style == 'chapter_left_section_right':
+            if getattr(self, 'current_chapter_title', ''):
+                self.c.drawString(l, HEADER_Y, self.current_chapter_title)
+        
+        if tpl.get('header_rule', True):
+            self.c.setStrokeColor(HexColor('#D0C8B8'))
+            self.c.setLineWidth(0.3)
+            self.c.line(l, HEADER_Y - 6, PAGE_W - r, HEADER_Y - 6)
     
-    def _draw_folio(self):
+        def _draw_folio(self):
+        tpl = getattr(self, 'tpl', {})
         if self.is_front_matter:
             return
         if getattr(self, '_suppress_folio_this_page', False):
             self._suppress_folio_this_page = False
             return
-        self.c.setFont('Gar', FTR_SZ)
+        pos = tpl.get('folio_position', 'centered')
+        folio_font = tpl.get('folio_font', 'Gar')
+        self.c.setFont(folio_font, FTR_SZ)
         self.c.setFillColor(C_GREY)
-        self.c.drawCentredString(PAGE_W/2, FOOTER_Y, str(self.page_num))
+        l, r = self._margins()
+        
+        if pos == 'centered' or pos == 'centered_with_dots':
+            num_str = str(self.page_num)
+            self.c.drawCentredString(PAGE_W/2, FOOTER_Y, num_str)
+            if pos == 'centered_with_dots':
+                w = self.c.stringWidth(num_str, folio_font, FTR_SZ)
+                cx = PAGE_W / 2
+                self.c.setFillColor(C_MID)
+                self.c.circle(cx - w/2 - 6, FOOTER_Y + 2, 1, fill=1, stroke=0)
+                self.c.circle(cx + w/2 + 6, FOOTER_Y + 2, 1, fill=1, stroke=0)
+        elif pos == 'bottom_outside':
+            if self.page_num % 2 == 0:
+                self.c.drawString(l, FOOTER_Y, str(self.page_num))
+            else:
+                self.c.drawRightString(PAGE_W - r, FOOTER_Y, str(self.page_num))
+        elif pos == 'top_outside':
+            hdr_style = tpl.get('header_style', 'centered')
+            y_pos = HEADER_Y if hdr_style == 'none' else FOOTER_Y
+            if self.page_num % 2 == 0:
+                self.c.drawString(l, y_pos, str(self.page_num))
+            else:
+                self.c.drawRightString(PAGE_W - r, y_pos, str(self.page_num))
+        else:
+            self.c.drawCentredString(PAGE_W/2, FOOTER_Y, str(self.page_num))
     
-    def _new_page(self, suppress=False):
+        def _new_page(self, suppress=False):
         if self.page_num > 0:
             self.c.showPage()
         self.page_num += 1
@@ -1084,11 +1153,20 @@ class BookRenderer:
             self._new_page()
             self.current_y = PAGE_H - MARGIN_TOP - 10
     
-    def _draw_para(self, text, centered=False, font='Gar', sz=BODY_SZ, 
-                   leading=BODY_LD, color=C_BODY, indent=0, align=None):
+    def _draw_para(self, text, centered=False, font=None, sz=None, 
+                   leading=None, color=C_BODY, indent=0, align=None):
         """Draw a wrapped paragraph. Updates self.current_y."""
+        tpl = getattr(self, 'tpl', {})
+        if font is None:
+            font = tpl.get('body_font', 'Gar')
+        if sz is None:
+            sz = tpl.get('body_size', BODY_SZ)
+        if leading is None:
+            leading = tpl.get('leading', BODY_LD)
         if align is None:
-            align = 'center' if centered else TEXT_ALIGNMENT
+            align = 'center' if centered else tpl.get('text_alignment', TEXT_ALIGNMENT)
+        if indent == 0 and tpl.get('first_line_indent', 0):
+            indent = tpl.get('first_line_indent', 0)
         # Strip remaining markdown formatting
         text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
         text = re.sub(r'\*([^*]+)\*', r'\1', text)
@@ -1636,31 +1714,90 @@ class BookRenderer:
     
     def render_chapter_opener(self, title, subtitle=''):
         """Start chapter on recto page, return with current_y set."""
+        tpl = getattr(self, 'tpl', {})
         self._ensure_recto()
-        self.is_front_matter = False  # chapters start body numbering
+        self.is_front_matter = False
         
-        self.current_y = PAGE_H - MARGIN_TOP - 80
+        self.chapter_count = getattr(self, 'chapter_count', 0) + 1
+        self.current_chapter_title = title
         
-        # Title
+        offset = tpl.get('chapter_start_offset', 80)
+        self.current_y = PAGE_H - MARGIN_TOP - offset
+        
         tw = self._tw()
-        self.c.setFont('GarB', CH_TITLE_SZ)
-        title_w = self.c.stringWidth(title, 'GarB', CH_TITLE_SZ)
+        cx = self._lm() + tw / 2
         
-        if title_w > tw:
-            words = title.split()
-            mid = len(words) // 2
-            l1 = ' '.join(words[:mid])
-            l2 = ' '.join(words[mid:])
-            self._ctxt(self.current_y, l1, 'GarB', CH_TITLE_SZ, C_BODY)
-            self.current_y -= 28
-            self._ctxt(self.current_y, l2, 'GarB', CH_TITLE_SZ, C_BODY)
-        else:
-            self._ctxt(self.current_y, title, 'GarB', CH_TITLE_SZ, C_BODY)
+        # Chapter number
+        num_style = tpl.get('chapter_number_style', 'none')
+        num_text = format_chapter_number(self.chapter_count, num_style)
+        if num_text:
+            num_font = tpl.get('heading_font', 'GarB')
+            if num_style == 'large_sans_topleft':
+                num_sz = tpl.get('chapter_title_size', 48)
+                self.c.setFont(num_font, num_sz)
+                self.c.setFillColor(C_BODY)
+                self.c.drawString(self._lm(), self.current_y, num_text)
+                self.current_y -= num_sz + 16
+            elif num_style == 'smallcaps_spaced':
+                self._ctxt(self.current_y, num_text, num_font, 11, C_BROWN)
+                self.current_y -= 20
+            elif num_style == 'italic_centered':
+                self._ctxt(self.current_y, num_text, 'GarI', 16, C_BROWN)
+                self.current_y -= 24
+            elif num_style == 'sans_medium':
+                self.c.setFont('SansB', 11)
+                self.c.setFillColor(C_MID)
+                self.c.drawString(self._lm(), self.current_y, num_text)
+                self.current_y -= 22
+            elif num_style == 'large_centered':
+                self._ctxt(self.current_y, num_text, 'GarB', 26, C_BROWN)
+                self.current_y -= 34
+            elif num_style == 'centered_caps':
+                self._ctxt(self.current_y, num_text, 'MonoB', 14, C_BODY)
+                self.current_y -= 26
         
-        self.current_y -= 25
+        # Chapter title
+        title_pos = tpl.get('chapter_title_position', 'centered')
+        title_font = tpl.get('chapter_title_font', 'GarB')
+        title_sz = tpl.get('chapter_title_size', CH_TITLE_SZ)
         
-        if subtitle:
-            # Wrap long subtitles
+        if title_pos != 'none' and title:
+            if title_pos == 'centered_caps_spaced':
+                title_text = ' '.join(title.upper())
+            else:
+                title_text = title
+            
+            title_w = self.c.stringWidth(title_text, title_font, title_sz)
+            
+            if title_w > tw:
+                words = title_text.split()
+                mid = len(words) // 2
+                l1 = ' '.join(words[:mid])
+                l2 = ' '.join(words[mid:])
+                if title_pos in ('left', 'left_below'):
+                    self.c.setFont(title_font, title_sz)
+                    self.c.setFillColor(C_BODY)
+                    self.c.drawString(self._lm(), self.current_y, l1)
+                    self.current_y -= title_sz + 4
+                    self.c.drawString(self._lm(), self.current_y, l2)
+                    self.current_y -= title_sz + 8
+                else:
+                    self._ctxt(self.current_y, l1, title_font, title_sz, C_BODY)
+                    self.current_y -= 28
+                    self._ctxt(self.current_y, l2, title_font, title_sz, C_BODY)
+                    self.current_y -= 25
+            else:
+                if title_pos in ('left', 'left_below'):
+                    self.c.setFont(title_font, title_sz)
+                    self.c.setFillColor(C_BODY)
+                    self.c.drawString(self._lm(), self.current_y, title_text)
+                    self.current_y -= title_sz + 12
+                else:
+                    self._ctxt(self.current_y, title_text, title_font, title_sz, C_BODY)
+                    self.current_y -= 25
+        
+        # Subtitle
+        if subtitle and title_pos != 'none':
             sub_w = self.c.stringWidth(subtitle, 'GarI', CH_SUB_SZ)
             if sub_w > tw:
                 sub_lines = self._wrap(subtitle, 'GarI', CH_SUB_SZ, tw)
@@ -1674,26 +1811,30 @@ class BookRenderer:
         else:
             self.current_y -= 10
         
-        # Decorative rule
-        cx = PAGE_W / 2
-        self.c.setStrokeColor(C_BROWN)
-        self.c.setLineWidth(0.5)
-        self.c.line(cx - 80, self.current_y, cx + 80, self.current_y)
-        self.current_y -= 30
+        # Ornament below title
+        ornament_style = tpl.get('ornament_below_title', 'rule')
+        if ornament_style and ornament_style != 'none':
+            draw_ornament(self.c, self.current_y, cx, ornament_style, C_BROWN)
+            self.current_y -= 30
+        
+        # Drop cap flag for first paragraph
+        self._drop_cap_style = tpl.get('drop_cap', 'none')
     
-    def render_chapter_end(self):
+        def render_chapter_end(self):
         self._check_page(50)
         self.current_y -= 15
-        ornament = getattr(self, 'chapter_end_ornament', 'fleuron')
-        if ornament == 'none':
+        tpl = getattr(self, 'tpl', {})
+        ornament = tpl.get('chapter_end_ornament', getattr(self, 'chapter_end_ornament', 'fleuron'))
+        if ornament == 'none' or not ornament:
             pass
         elif ornament == 'divider':
             self._divider(self.current_y)
-        else:  # fleuron (default) - the decorative flourish
-            self._ornament(self.current_y)
+        else:
+            cx = self._lm() + self._tw() / 2
+            draw_ornament(self.c, self.current_y, cx, ornament, C_BROWN)
         self._finish_page()
     
-    def render_profile(self, name, tagline, body, is_first=False):
+        def render_profile(self, name, tagline, body, is_first=False):
         if not is_first:
             self._check_page(80)
             self._dot_sep(self.current_y)
