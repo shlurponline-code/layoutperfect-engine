@@ -1001,50 +1001,50 @@ class BookRenderer:
             self.c.setLineWidth(0.3)
             self.c.line(l, HEADER_Y - 6, PAGE_W - r, HEADER_Y - 6)
     
-        def _draw_folio(self):
-            tpl = getattr(self, 'tpl', {})
-            if self.is_front_matter:
-                return
-            if getattr(self, '_suppress_folio_this_page', False):
-                self._suppress_folio_this_page = False
-                return
-            pos = tpl.get('folio_position', 'centered')
-            folio_font = tpl.get('folio_font', 'Gar')
-            self.c.setFont(folio_font, FTR_SZ)
-            self.c.setFillColor(C_GREY)
-            l, r = self._margins()
-        
-            if pos == 'centered' or pos == 'centered_with_dots':
-                num_str = str(self.page_num)
-                self.c.drawCentredString(PAGE_W/2, FOOTER_Y, num_str)
-                if pos == 'centered_with_dots':
-                    w = self.c.stringWidth(num_str, folio_font, FTR_SZ)
-                    cx = PAGE_W / 2
-                    self.c.setFillColor(C_MID)
-                    self.c.circle(cx - w/2 - 6, FOOTER_Y + 2, 1, fill=1, stroke=0)
-                    self.c.circle(cx + w/2 + 6, FOOTER_Y + 2, 1, fill=1, stroke=0)
-            elif pos == 'bottom_outside':
-                if self.page_num % 2 == 0:
-                    self.c.drawString(l, FOOTER_Y, str(self.page_num))
-                else:
-                    self.c.drawRightString(PAGE_W - r, FOOTER_Y, str(self.page_num))
-            elif pos == 'top_outside':
-                hdr_style = tpl.get('header_style', 'centered')
-                y_pos = HEADER_Y if hdr_style == 'none' else FOOTER_Y
-                if self.page_num % 2 == 0:
-                    self.c.drawString(l, y_pos, str(self.page_num))
-                else:
-                    self.c.drawRightString(PAGE_W - r, y_pos, str(self.page_num))
+    def _draw_folio(self):
+        tpl = getattr(self, 'tpl', {})
+        if self.is_front_matter:
+            return
+        if getattr(self, '_suppress_folio_this_page', False):
+            self._suppress_folio_this_page = False
+            return
+        pos = tpl.get('folio_position', 'centered')
+        folio_font = tpl.get('folio_font', 'Gar')
+        self.c.setFont(folio_font, FTR_SZ)
+        self.c.setFillColor(C_GREY)
+        l, r = self._margins()
+    
+        if pos == 'centered' or pos == 'centered_with_dots':
+            num_str = str(self.page_num)
+            self.c.drawCentredString(PAGE_W/2, FOOTER_Y, num_str)
+            if pos == 'centered_with_dots':
+                w = self.c.stringWidth(num_str, folio_font, FTR_SZ)
+                cx = PAGE_W / 2
+                self.c.setFillColor(C_MID)
+                self.c.circle(cx - w/2 - 6, FOOTER_Y + 2, 1, fill=1, stroke=0)
+                self.c.circle(cx + w/2 + 6, FOOTER_Y + 2, 1, fill=1, stroke=0)
+        elif pos == 'bottom_outside':
+            if self.page_num % 2 == 0:
+                self.c.drawString(l, FOOTER_Y, str(self.page_num))
             else:
-                self.c.drawCentredString(PAGE_W/2, FOOTER_Y, str(self.page_num))
-    
-        def _new_page(self, suppress=False):
-            if self.page_num > 0:
-                self.c.showPage()
-            self.page_num += 1
-            self.suppress_hdr = suppress
-            self.current_y = PAGE_H - MARGIN_TOP - 10
-    
+                self.c.drawRightString(PAGE_W - r, FOOTER_Y, str(self.page_num))
+        elif pos == 'top_outside':
+            hdr_style = tpl.get('header_style', 'centered')
+            y_pos = HEADER_Y if hdr_style == 'none' else FOOTER_Y
+            if self.page_num % 2 == 0:
+                self.c.drawString(l, y_pos, str(self.page_num))
+            else:
+                self.c.drawRightString(PAGE_W - r, y_pos, str(self.page_num))
+        else:
+            self.c.drawCentredString(PAGE_W/2, FOOTER_Y, str(self.page_num))
+
+def _new_page(self, suppress=False):
+    if self.page_num > 0:
+        self.c.showPage()
+    self.page_num += 1
+    self.suppress_hdr = suppress
+    self.current_y = PAGE_H - MARGIN_TOP - 10
+
     def _finish_page(self):
         self._draw_header()
         self._draw_folio()
@@ -1822,49 +1822,49 @@ class BookRenderer:
         # Drop cap flag for first paragraph
         self._drop_cap_style = tpl.get('drop_cap', 'none')
     
-        def render_chapter_end(self):
-            self._check_page(50)
-            self.current_y -= 15
-            tpl = getattr(self, 'tpl', {})
-            ornament = tpl.get('chapter_end_ornament', getattr(self, 'chapter_end_ornament', 'fleuron'))
-            if ornament == 'none' or not ornament:
-                pass
-            elif ornament == 'divider':
-                self._divider(self.current_y)
-            else:
-                cx = self._lm() + self._tw() / 2
-                draw_ornament(self.c, self.current_y, cx, ornament, C_BROWN)
-            self._finish_page()
-    
-        def render_profile(self, name, tagline, body, is_first=False):
-            if not is_first:
-                self._check_page(80)
-                self._dot_sep(self.current_y)
-                self.current_y -= 22
-        
-            self._check_page(60)
-        
-            # Name
-            lm = self._lm()
-            self.c.setFont('GarB', PROF_NAME_SZ)
-            self.c.setFillColor(C_BODY)
-            self.c.drawString(lm, self.current_y, name)
-            self.current_y -= 18
-        
-            # Tagline
-            if tagline:
-                tag = tagline.replace('--', '\u2013')
-                self.c.setFont('GarI', PROF_TAG_SZ)
-                self.c.setFillColor(C_MID)
-                self.c.drawString(lm, self.current_y, tag)
-                self.current_y -= 20
-            else:
-                self.current_y -= 6
-        
-            # Body
-            for para in body:
-                self._draw_content(para)
-    
+    def render_chapter_end(self):
+        self._check_page(50)
+        self.current_y -= 15
+        tpl = getattr(self, 'tpl', {})
+        ornament = tpl.get('chapter_end_ornament', getattr(self, 'chapter_end_ornament', 'fleuron'))
+        if ornament == 'none' or not ornament:
+            pass
+        elif ornament == 'divider':
+            self._divider(self.current_y)
+        else:
+            cx = self._lm() + self._tw() / 2
+            draw_ornament(self.c, self.current_y, cx, ornament, C_BROWN)
+        self._finish_page()
+
+def render_profile(self, name, tagline, body, is_first=False):
+    if not is_first:
+        self._check_page(80)
+        self._dot_sep(self.current_y)
+        self.current_y -= 22
+
+    self._check_page(60)
+
+    # Name
+    lm = self._lm()
+    self.c.setFont('GarB', PROF_NAME_SZ)
+    self.c.setFillColor(C_BODY)
+    self.c.drawString(lm, self.current_y, name)
+    self.current_y -= 18
+
+    # Tagline
+    if tagline:
+        tag = tagline.replace('--', '\u2013')
+        self.c.setFont('GarI', PROF_TAG_SZ)
+        self.c.setFillColor(C_MID)
+        self.c.drawString(lm, self.current_y, tag)
+        self.current_y -= 20
+    else:
+        self.current_y -= 6
+
+    # Body
+    for para in body:
+        self._draw_content(para)
+
     def render_also_available(self):
         """Also available page â nod to Not Manchester."""
         self._ensure_recto()
