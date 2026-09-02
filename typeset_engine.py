@@ -1002,15 +1002,36 @@ class BookRenderer:
         self.c.setFillColor(color)
         self.c.drawCentredString(self._lm() + self._tw() / 2, y, text)
     
-    def _ornament(self, y, ch='â¦', sz=18, color=C_BROWN):
-        self._ctxt(y, ch, 'Gar', sz, color)
+    def _ornament(self, y, sz=18, color=C_BROWN):
+        """Draw a decorative ornament: short rules flanking a filled diamond."""
+        cx = self._lm() + self._tw() / 2
+        self.c.setStrokeColor(color)
+        self.c.setFillColor(color)
+        self.c.setLineWidth(0.5)
+        self.c.line(cx - 35, y, cx - 8, y)
+        self.c.line(cx + 8, y, cx + 35, y)
+        self.c.saveState()
+        self.c.translate(cx, y)
+        self.c.rotate(45)
+        self.c.rect(-3, -3, 6, 6, fill=1, stroke=0)
+        self.c.restoreState()
     
     def _divider(self, y, style='end'):
-        ch = 'â»' if style == 'star' else 'â§'
-        self._ctxt(y, f'â {ch} â', 'Gar', 16, C_BROWN)
+        """Draw a divider: short rules flanking a filled circle."""
+        cx = self._lm() + self._tw() / 2
+        self.c.setStrokeColor(C_BROWN)
+        self.c.setFillColor(C_BROWN)
+        self.c.setLineWidth(0.5)
+        self.c.line(cx - 30, y, cx - 5, y)
+        self.c.line(cx + 5, y, cx + 30, y)
+        self.c.circle(cx, y, 2, fill=1, stroke=0)
     
     def _dot_sep(self, y):
-        self._ctxt_block(y, 'â¢   â¢   â¢', 'Gar', 10, C_MID)
+        """Draw three small filled circles as a section separator."""
+        cx = self._lm() + self._tw() / 2
+        self.c.setFillColor(C_MID)
+        for dx in (-12, 0, 12):
+            self.c.circle(cx + dx, y, 1.5, fill=1, stroke=0)
         return y - 8
     
     def _wrap(self, text, font, sz, max_w):
@@ -1667,9 +1688,9 @@ class BookRenderer:
         if ornament == 'none':
             pass
         elif ornament == 'divider':
-            self._ctxt_block(self.current_y, 'â â§ â', 'Gar', 16, C_BROWN)
-        else:  # fleuron (default) â the decorative flourish
-            self._ctxt_block(self.current_y, 'â¦', 'Gar', 18, C_BROWN)
+            self._divider(self.current_y)
+        else:  # fleuron (default) - the decorative flourish
+            self._ornament(self.current_y)
         self._finish_page()
     
     def render_profile(self, name, tagline, body, is_first=False):
