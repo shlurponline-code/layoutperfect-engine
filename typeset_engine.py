@@ -855,7 +855,9 @@ class GenericBookBuilder:
                     elif item['type'] == 'scene_break':
                         r._check_page(40)
                         r.current_y -= 12
-                        r._ctxt_block(r.current_y, 'â¢   â¢   â¢', 'Gar', 10, C_MID)
+                        cx = r._lm() + r._tw() / 2
+                        _sb = r.tpl.get('scene_break', 'dots') if hasattr(r, 'tpl') else 'dots'
+                        draw_scene_break(r.c, r.current_y, cx, _sb, C_MID)
                         r.current_y -= 20
                     elif item['type'] == 'image':
                         r._draw_content(item['text'])
@@ -1197,7 +1199,7 @@ class BookRenderer:
                 self.c.drawString(lm, self.current_y, line_text)
             self.current_y -= leading
         
-        self.current_y -= 2  # paragraph gap
+        self.current_y -= 2 + getattr(self, 'tpl', {}).get('paragraph_spacing', 0)
     
     def _draw_justified_line(self, line_text, x, y, font, sz, max_w):
         """Draw a line justified to fill max_w (not the last line)."""
