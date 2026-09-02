@@ -1038,12 +1038,12 @@ class BookRenderer:
         else:
             self.c.drawCentredString(PAGE_W/2, FOOTER_Y, str(self.page_num))
 
-def _new_page(self, suppress=False):
-    if self.page_num > 0:
-        self.c.showPage()
-    self.page_num += 1
-    self.suppress_hdr = suppress
-    self.current_y = PAGE_H - MARGIN_TOP - 10
+    def _new_page(self, suppress=False):
+        if self.page_num > 0:
+            self.c.showPage()
+        self.page_num += 1
+        self.suppress_hdr = suppress
+        self.current_y = PAGE_H - MARGIN_TOP - 10
 
     def _finish_page(self):
         self._draw_header()
@@ -1836,34 +1836,34 @@ def _new_page(self, suppress=False):
             draw_ornament(self.c, self.current_y, cx, ornament, C_BROWN)
         self._finish_page()
 
-def render_profile(self, name, tagline, body, is_first=False):
-    if not is_first:
-        self._check_page(80)
-        self._dot_sep(self.current_y)
-        self.current_y -= 22
+    def render_profile(self, name, tagline, body, is_first=False):
+        if not is_first:
+            self._check_page(80)
+            self._dot_sep(self.current_y)
+            self.current_y -= 22
 
-    self._check_page(60)
+        self._check_page(60)
 
-    # Name
-    lm = self._lm()
-    self.c.setFont('GarB', PROF_NAME_SZ)
-    self.c.setFillColor(C_BODY)
-    self.c.drawString(lm, self.current_y, name)
-    self.current_y -= 18
+        # Name
+        lm = self._lm()
+        self.c.setFont('GarB', PROF_NAME_SZ)
+        self.c.setFillColor(C_BODY)
+        self.c.drawString(lm, self.current_y, name)
+        self.current_y -= 18
 
-    # Tagline
-    if tagline:
-        tag = tagline.replace('--', '\u2013')
-        self.c.setFont('GarI', PROF_TAG_SZ)
-        self.c.setFillColor(C_MID)
-        self.c.drawString(lm, self.current_y, tag)
-        self.current_y -= 20
-    else:
-        self.current_y -= 6
+        # Tagline
+        if tagline:
+            tag = tagline.replace('--', '\u2013')
+            self.c.setFont('GarI', PROF_TAG_SZ)
+            self.c.setFillColor(C_MID)
+            self.c.drawString(lm, self.current_y, tag)
+            self.current_y -= 20
+        else:
+            self.current_y -= 6
 
-    # Body
-    for para in body:
-        self._draw_content(para)
+        # Body
+        for para in body:
+            self._draw_content(para)
 
     def render_also_available(self):
         """Also available page â nod to Not Manchester."""
