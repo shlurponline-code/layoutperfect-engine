@@ -291,6 +291,7 @@ def typeset(req: TypesetRequest):
                 author=req.author,
                 chapter_end_ornament=req.chapter_end_ornament,
                 language=req.language,
+                template=req.template,
             )
         
         block_types = ",".join(b.get('type','?') for b in builder.blocks)
