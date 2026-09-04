@@ -804,7 +804,7 @@ class GenericBookBuilder:
                 r.c.setFont('Gar', 9.5)
                 r.c.setFillColor(C_BODY)
                 if line == self.publisher_url:
-                    r.c.drawCentredString(PAGE_W / 2, y, wl)
+                    r.c.drawCentredString(r._lm() + r._tw() / 2, y, wl)
                 else:
                     r.c.drawString(lm, y, wl)
                 y -= 13
@@ -879,7 +879,7 @@ class GenericBookBuilder:
         r._ctxt(y, self.publisher, 'Gar', 10, C_DARK); y -= 18
         r.c.setFont('Gar', 8.5)
         r.c.setFillColor(C_GREY)
-        r.c.drawCentredString(PAGE_W / 2, y,
+        r.c.drawCentredString(r._lm() + r._tw() / 2, y,
                              f'\u00a9 2026 {self.author}. All rights reserved.')
         r._finish_page()
         
@@ -982,7 +982,7 @@ class BookRenderer:
         
         if style == 'centered':
             txt = self.header_text or 'Layout Perfect'
-            self.c.drawCentredString(PAGE_W/2, HEADER_Y, txt)
+            self.c.drawCentredString(self._lm() + self._tw() / 2, HEADER_Y, txt)
         elif style == 'title_left_chapter_right':
             self.c.drawString(l, HEADER_Y, self.header_text or '')
             if getattr(self, 'current_chapter_title', ''):
@@ -1016,10 +1016,10 @@ class BookRenderer:
     
         if pos == 'centered' or pos == 'centered_with_dots':
             num_str = str(self.page_num)
-            self.c.drawCentredString(PAGE_W/2, FOOTER_Y, num_str)
+            self.c.drawCentredString(self._lm() + self._tw() / 2, FOOTER_Y, num_str)
             if pos == 'centered_with_dots':
                 w = self.c.stringWidth(num_str, folio_font, FTR_SZ)
-                cx = PAGE_W / 2
+                cx = self._lm() + self._tw() / 2
                 self.c.setFillColor(C_MID)
                 self.c.circle(cx - w/2 - 6, FOOTER_Y + 2, 1, fill=1, stroke=0)
                 self.c.circle(cx + w/2 + 6, FOOTER_Y + 2, 1, fill=1, stroke=0)
@@ -1036,7 +1036,7 @@ class BookRenderer:
             else:
                 self.c.drawRightString(PAGE_W - r, y_pos, str(self.page_num))
         else:
-            self.c.drawCentredString(PAGE_W/2, FOOTER_Y, str(self.page_num))
+            self.c.drawCentredString(self._lm() + self._tw() / 2, FOOTER_Y, str(self.page_num))
 
     def _new_page(self, suppress=False):
         if self.page_num > 0:
@@ -1065,7 +1065,7 @@ class BookRenderer:
     def _ctxt(self, y, text, font, sz, color=C_BODY):
         self.c.setFont(font, sz)
         self.c.setFillColor(color)
-        self.c.drawCentredString(PAGE_W/2, y, text)
+        self.c.drawCentredString(self._lm() + self._tw() / 2, y, text)
 
     def _ctxt_block(self, y, text, font, sz, color=C_BODY):
         """Center text within the text block (accounts for gutter/inside-outside margins)."""
@@ -1189,7 +1189,7 @@ class BookRenderer:
             self.c.setFont(font, sz)
             self.c.setFillColor(color)
             if align == 'center':
-                self.c.drawCentredString(PAGE_W/2, self.current_y, line_text)
+                self.c.drawCentredString(self._lm() + self._tw() / 2, self.current_y, line_text)
             elif align == 'right':
                 line_w = self.c.stringWidth(line_text, font, sz)
                 self.c.drawString(PAGE_W - MARGIN_OUTSIDE - line_w, self.current_y, line_text)
@@ -1426,7 +1426,7 @@ class BookRenderer:
                 
                 # Semi-transparent background for readability
                 self.c.setFillColor(HexColor('#00000080'))
-                bg_x = PAGE_W / 2 - self._tw() * 0.42
+                bg_x = self._lm() + self._tw() / 2 - self._tw() * 0.42
                 self.c.rect(bg_x, cap_y_start - 4, self._tw() * 0.84, cap_h,
                            stroke=0, fill=1)
                 
@@ -1434,7 +1434,7 @@ class BookRenderer:
                 self.c.setFillColor(HexColor('#FFFFFF'))
                 cy = cap_y_start + cap_h - (caption_sz + 3) - 4
                 for cap_line in cap_lines:
-                    self.c.drawCentredString(PAGE_W / 2, cy, cap_line)
+                    self.c.drawCentredString(self._lm() + self._tw() / 2, cy, cap_line)
                     cy -= (caption_sz + 3)
         
         # DPI check
@@ -1598,7 +1598,7 @@ class BookRenderer:
                 self.c.setFont('Gar', 9.5)
                 self.c.setFillColor(C_BODY)
                 if is_centered:
-                    self.c.drawCentredString(PAGE_W/2, y, wl)
+                    self.c.drawCentredString(self._lm() + self._tw() / 2, y, wl)
                 else:
                     self.c.drawString(lm, y, wl)
                 y -= 13
@@ -1613,9 +1613,9 @@ class BookRenderer:
         y = PAGE_H/2 + 30
         self.c.setFont('GarI', 12)
         self.c.setFillColor(C_DARK)
-        self.c.drawCentredString(PAGE_W/2, y, '"For anyone who\'s ever said:')
+        self.c.drawCentredString(self._lm() + self._tw() / 2, y, '"For anyone who\'s ever said:')
         y -= 18
-        self.c.drawCentredString(PAGE_W/2, y, 'I\'m not from Manchester, I\'m from Salford."')
+        self.c.drawCentredString(self._lm() + self._tw() / 2, y, 'I\'m not from Manchester, I\'m from Salford."')
         self._finish_page()
     
     def render_note(self, paras):
@@ -1876,7 +1876,7 @@ class BookRenderer:
         y -= 35
         
         # Decorative rule above title
-        cx = PAGE_W / 2
+        cx = self._lm() + self._tw() / 2
         self.c.setStrokeColor(C_BROWN)
         self.c.setLineWidth(0.5)
         self.c.line(cx - 60, y, cx + 60, y)
@@ -1911,7 +1911,7 @@ class BookRenderer:
         self._ctxt(y, 'D&H Publishing International', 'Gar', 10, C_DARK); y -= 18
         self.c.setFont('Gar', 8.5)
         self.c.setFillColor(C_GREY)
-        self.c.drawCentredString(PAGE_W/2, y, '\u00a9 2026 David Oldham. All rights reserved.')
+        self.c.drawCentredString(self._lm() + self._tw() / 2, y, '\u00a9 2026 David Oldham. All rights reserved.')
         self._finish_page()
 
 
