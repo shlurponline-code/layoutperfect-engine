@@ -833,10 +833,10 @@ class GenericBookBuilder:
                 r.is_front_matter = False
                 r.toc_entries.append((blk['title'], r.page_num, 0))
                 y = PAGE_H / 2 + 30
-                r._ctxt(y, blk['title'].upper(), 'GarB', 24, C_BODY)
+                y = r._ctxt_wrapped(y, blk['title'].upper(), 'GarB', 24, C_BODY)
                 if blk.get('subtitle'):
                     y -= 28
-                    r._ctxt(y, blk['subtitle'], 'GarI', 14, C_BROWN)
+                    y = r._ctxt_wrapped(y, blk['subtitle'], 'GarI', 14, C_BROWN)
                 r._finish_page()
             
             elif t == 'chapter':
@@ -1072,6 +1072,32 @@ class BookRenderer:
         self.c.setFont(font, sz)
         self.c.setFillColor(color)
         self.c.drawCentredString(self._lm() + self._tw() / 2, y, text)
+    
+    def _ctxt_wrapped(self, y, text, font, sz, color=C_BODY, leading=None):
+        """Draw centered text, wrapped to fit within the text block."""
+        if leading is None:
+            leading = sz * 1.2
+        tw = self._tw()
+        self.c.setFont(font, sz)
+        words = text.split()
+        lines = []
+        cur = ''
+        for w in words:
+            test = f'{cur} {w}'.strip()
+            if self.c.stringWidth(test, font, sz) <= tw:
+                cur = test
+            else:
+                if cur:
+                    lines.append(cur)
+                cur = w
+        if cur:
+            lines.append(cur)
+        for line in lines:
+            self.c.setFont(font, sz)
+            self.c.setFillColor(color)
+            self.c.drawCentredString(self._lm() + tw / 2, y, line)
+            y -= leading
+        return y
     
     def _ornament(self, y, sz=18, color=C_BROWN):
         """Draw a decorative ornament: short rules flanking a filled diamond."""
@@ -1784,10 +1810,10 @@ class BookRenderer:
                     self.c.drawString(self._lm(), self.current_y, l2)
                     self.current_y -= title_sz + 8
                 else:
-                    self._ctxt(self.current_y, l1, title_font, title_sz, C_BODY)
-                    self.current_y -= 28
-                    self._ctxt(self.current_y, l2, title_font, title_sz, C_BODY)
-                    self.current_y -= 25
+                    self.current_y = self._ctxt_wrapped(self.current_y, l1, title_font, title_sz, C_BODY)
+                    self.current_y -= 8
+                    self.current_y = self._ctxt_wrapped(self.current_y, l2, title_font, title_sz, C_BODY)
+                    self.current_y -= 8
             else:
                 if title_pos in ('left', 'left_below'):
                     self.c.setFont(title_font, title_sz)
@@ -1804,11 +1830,11 @@ class BookRenderer:
             if sub_w > tw:
                 sub_lines = self._wrap(subtitle, 'GarI', CH_SUB_SZ, tw)
                 for sl in sub_lines:
-                    self._ctxt(self.current_y, sl, 'GarI', CH_SUB_SZ, C_BROWN)
+                    self.current_y = self._ctxt_wrapped(self.current_y, sl, 'GarI', CH_SUB_SZ, C_BROWN)
                     self.current_y -= 18
                 self.current_y -= 12
             else:
-                self._ctxt(self.current_y, subtitle, 'GarI', CH_SUB_SZ, C_BROWN)
+                self.current_y = self._ctxt_wrapped(self.current_y, subtitle, 'GarI', CH_SUB_SZ, C_BROWN)
                 self.current_y -= 30
         else:
             self.current_y -= 10
