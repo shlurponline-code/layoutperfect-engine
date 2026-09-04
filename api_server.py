@@ -264,12 +264,33 @@ def typeset(req: TypesetRequest):
         # Import the engine
         from typeset_engine import BookBuilder, GenericBookBuilder, PAGE_W, PAGE_H, get_toc_title
 
-        # Apply custom margins
+        # KDP gutter requirement varies by page count — estimate pages
+        # from word count and ensure the inside margin meets the minimum.
+        word_count = len(req.manuscript.split())
+        est_pages = max(24, int(word_count / 280))
+        if est_pages <= 150:
+            kdp_min_gutter_in = 0.375
+        elif est_pages <= 300:
+            kdp_min_gutter_in = 0.5
+        elif est_pages <= 500:
+            kdp_min_gutter_in = 0.625
+        elif est_pages <= 700:
+            kdp_min_gutter_in = 0.75
+        else:
+            kdp_min_gutter_in = 0.875
+
+        # Calculate inside margin, ensuring it meets KDP minimum gutter
+        inside_margin_in = req.margin_inside_cm / 2.54 + req.gutter_cm / 2.54
+        if inside_margin_in < kdp_min_gutter_in:
+            inside_margin_in = kdp_min_gutter_in
+            print(f"KDP gutter override: inside margin increased to {kdp_min_gutter_in}" for ~{est_pages} pages (est. from {word_count} words)")
+
+        # Apply custom margins (all enforced to KDP minimums)
         import typeset_engine as engine
-        engine.MARGIN_INSIDE = (req.margin_inside_cm / 2.54 + req.gutter_cm / 2.54) * 72
-        engine.MARGIN_OUTSIDE = (req.margin_outside_cm / 2.54) * 72
-        engine.MARGIN_TOP = (req.margin_top_cm / 2.54) * 72
-        engine.MARGIN_BOTTOM = (req.margin_bottom_cm / 2.54) * 72
+        engine.MARGIN_INSIDE = inside_margin_in * 72
+        engine.MARGIN_OUTSIDE = max(req.margin_outside_cm / 2.54, 0.25) * 72
+        engine.MARGIN_TOP = max(req.margin_top_cm / 2.54, 0.25) * 72
+        engine.MARGIN_BOTTOM = max(req.margin_bottom_cm / 2.54, 0.25) * 72
         engine.BODY_SZ = req.body_size_pt
         engine.BODY_LD = req.leading_pt
         engine.CH_TITLE_SZ = req.chapter_title_size_pt
