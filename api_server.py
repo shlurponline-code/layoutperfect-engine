@@ -283,7 +283,7 @@ def typeset(req: TypesetRequest):
         inside_margin_in = req.margin_inside_cm / 2.54 + req.gutter_cm / 2.54
         if inside_margin_in < kdp_min_gutter_in:
             inside_margin_in = kdp_min_gutter_in
-            print(f"KDP gutter override: inside margin increased to {kdp_min_gutter_in}" for ~{est_pages} pages (est. from {word_count} words)")
+            print(f'KDP gutter override: inside margin increased to {kdp_min_gutter_in}in for ~{est_pages} pages (est. from {word_count} words)')
 
         # Apply custom margins (all enforced to KDP minimums)
         import typeset_engine as engine
