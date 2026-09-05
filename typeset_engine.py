@@ -36,6 +36,16 @@ MARGIN_INSIDE  = 1.0 * inch     # 2.54cm (1.54cm + 1cm gutter)
 MARGIN_OUTSIDE = 0.630 * inch   # 1.6cm
 MARGIN_TOP     = 1.0 * inch     # 2.54cm
 MARGIN_BOTTOM  = 1.0 * inch     # 2.54cm
+
+# Verso fill config (set by api_server from TypesetConfig)
+VERSO_CONTENT = 'none'
+VERSO_QUOTES = []
+VERSO_QUOTE_STYLE = 'italic'
+VERSO_QUOTE_SIZE = 14
+VERSO_IMAGES = []
+VERSO_IMAGE_CAPTIONS = []
+VERSO_IMAGE_SIZE = 'medium'
+VERSO_IMAGE_OPACITY = 100
 HEADER_Y = PAGE_H - 0.5 * inch
 FOOTER_Y = 0.5 * inch
 
@@ -683,6 +693,7 @@ class GenericBookBuilder:
         self.chapter_end_ornament = chapter_end_ornament
         self.language = language
         self.template = template
+        self.verso_counter = 0
         self.tpl = TEMPLATES.get(template, TEMPLATES['narrative'])
         self.toc_title = get_toc_title(language)
         self.blocks = parse_manuscript_generic(md_path)
@@ -1049,7 +1060,130 @@ class BookRenderer:
         self._draw_header()
         self._draw_folio()
     
-    def _ensure_recto(self):
+    def _fill_verso(self):
+        """Fill a blank verso page with the configured content."""
+        ct = VERSO_CONTENT
+        if ct == 'none':
+            return
+        if ct in ('single_quote', 'rotating_quotes'):
+            self._draw_verso_quote()
+        elif ct in ('single_image', 'rotating_images'):
+            self._draw_verso_image()
+        elif ct == 'ornamental':
+            self._draw_verso_ornament()
+
+    def _draw_verso_quote(self):
+        quotes = VERSO_QUOTES
+        if not quotes:
+            return
+        if VERSO_CONTENT == 'single_quote':
+            q = quotes[0]
+        else:
+            q = quotes[self.verso_counter % len(quotes)]
+        self.verso_counter += 1
+        tw = self._tw()
+        cx = self._lm() + tw / 2
+        font = 'GarI' if VERSO_QUOTE_STYLE == 'italic' else 'Gar'
+        sz = VERSO_QUOTE_SIZE or 14
+        lines = self._wrap(q.get('text', ''), font, sz, tw * 0.7)
+        total_h = len(lines) * sz * 1.5
+        if q.get('attribution'):
+            total_h += 24
+        y = PAGE_H / 2 + total_h / 2
+        for line in lines:
+            self.c.setFont(font, sz)
+            self.c.setFillColor(C_BODY)
+            self.c.drawCentredString(cx, y, line)
+            y -= sz * 1.5
+        if q.get('attribution'):
+            y -= 12
+            self.c.setFont('Gar', 10)
+            self.c.setFillColor(C_BROWN)
+            self.c.drawCentredString(cx, y, q['attribution'].upper())
+
+    def _draw_verso_image(self):
+        images = VERSO_IMAGES
+        if not images:
+            return
+        if VERSO_CONTENT == 'single_image':
+            img_url = images[0]
+            cap_idx = 0
+        else:
+            img_url = images[self.verso_counter % len(images)]
+            cap_idx = self.verso_counter % len(images)
+        caption = VERSO_IMAGE_CAPTIONS[cap_idx] if VERSO_IMAGE_CAPTIONS and cap_idx < len(VERSO_IMAGE_CAPTIONS) else ''
+        self.verso_counter += 1
+        try:
+            from reportlab.lib.utils import ImageReader
+            import urllib.request, tempfile
+            req = urllib.request.Request(img_url, headers={'User-Agent': 'LayoutPerfectEngine/1.0'})
+            with urllib.request.urlopen(req) as response:
+                img_data = response.read()
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.img') as f:
+                f.write(img_data)
+                img_path = f.name
+            img = ImageReader(img_path)
+            iw, ih = img.getSize()
+            tw = self._tw()
+            th = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM
+            size_map = {'small': (0.5, 0.4), 'medium': (0.7, 0.6), 'large': (0.85, 0.75)}
+            mw_f, mh_f = size_map.get(VERSO_IMAGE_SIZE, (0.7, 0.6))
+            max_w = tw * mw_f
+            max_h = th * mh_f
+            scale = min(max_w / iw, max_h / ih)
+            draw_w = iw * scale
+            draw_h = ih * scale
+            cx = self._lm() + tw / 2
+            cy = PAGE_H / 2 + 20
+            self.c.drawImage(img, cx - draw_w / 2, cy - draw_h / 2, draw_w, draw_h)
+            if caption:
+                self.c.setFont('GarI', 9)
+                self.c.setFillColor(C_BROWN)
+                self.c.drawCentredString(cx, cy - draw_h / 2 - 20, caption)
+            os.unlink(img_path)
+        except Exception as e:
+            print(f'Verso image error: {e}')
+
+    def _draw_verso_ornament(self):
+        ornaments = ['fleuron', 'diamond', 'botanical', 'geometric', 'dots', 'rules']
+        ornament = ornaments[self.verso_counter % len(ornaments)]
+        self.verso_counter += 1
+        cx = self._lm() + self._tw() / 2
+        cy = PAGE_H / 2
+        color = C_BROWN
+        if ornament == 'fleuron':
+            self._ornament(cy, sz=24, color=color)
+        elif ornament == 'diamond':
+            self.c.setFillColor(color)
+            self.c.saveState()
+            self.c.translate(cx, cy)
+            self.c.rotate(45)
+            self.c.rect(-8, -8, 16, 16, fill=1, stroke=0)
+            self.c.restoreState()
+        elif ornament == 'botanical':
+            self.c.setStrokeColor(color)
+            self.c.setLineWidth(1)
+            self.c.line(cx, cy - 30, cx, cy + 30)
+            for i in range(-2, 3):
+                yy = cy + i * 12
+                self.c.line(cx, yy, cx - 15, yy + 8)
+                self.c.line(cx, yy, cx + 15, yy + 8)
+        elif ornament == 'geometric':
+            self.c.setStrokeColor(color)
+            self.c.setLineWidth(0.5)
+            for r in [8, 16, 24]:
+                self.c.circle(cx, cy, r, stroke=1, fill=0)
+        elif ornament == 'dots':
+            self.c.setFillColor(color)
+            for dx in [-12, 0, 12]:
+                self.c.circle(cx + dx, cy, 2, fill=1, stroke=0)
+        elif ornament == 'rules':
+            self.c.setStrokeColor(color)
+            self.c.setLineWidth(0.5)
+            self.c.line(cx - 30, cy + 5, cx + 30, cy + 5)
+            self.c.line(cx - 30, cy - 5, cx + 30, cy - 5)
+
+        def _ensure_recto(self):
         """Finish current page and ensure next is recto (odd)."""
         self._finish_page()
         if self.page_num % 2 == 0:  # on verso, add blank recto? No â need blank verso
@@ -1058,7 +1192,7 @@ class BookRenderer:
         else:
             # On odd (recto), need to add a blank verso first
             self._new_page(suppress=True)
-            self._draw_folio()
+            self._fill_verso()
             self._finish_page()
         self._new_page(suppress=True)
     
