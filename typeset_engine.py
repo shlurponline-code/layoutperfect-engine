@@ -1184,17 +1184,17 @@ class BookRenderer:
             self.c.line(cx - 30, cy - 5, cx + 30, cy - 5)
 
     def _ensure_recto(self):
-    """Finish current page and ensure next is recto (odd)."""
-    self._finish_page()
-    if self.page_num % 2 == 0:  # on verso, add blank recto? No â need blank verso
-        # Actually: if on even page (verso), next page is odd (recto) â good
-        pass
-    else:
-        # On odd (recto), need to add a blank verso first
-        self._new_page(suppress=True)
-        self._fill_verso()
+        """Finish current page and ensure next is recto (odd)."""
         self._finish_page()
-    self._new_page(suppress=True)
+        if self.page_num % 2 == 0:  # on verso, add blank recto? No â need blank verso
+            # Actually: if on even page (verso), next page is odd (recto) â good
+            pass
+        else:
+            # On odd (recto), need to add a blank verso first
+            self._new_page(suppress=True)
+            self._fill_verso()
+            self._finish_page()
+        self._new_page(suppress=True)
 
     def _ctxt(self, y, text, font, sz, color=C_BODY):
         self.c.setFont(font, sz)
