@@ -78,6 +78,15 @@ class TypesetRequest(BaseModel):
     # Text alignment and hyphenation (LP-FEAT-007)
     text_alignment: str = Field(default="justified", description="justified, left, center, right")
     language: str = Field(default="en_GB", description="Hyphenation language: en_GB, en_US, fr, de, es")
+    # Verso fill (LP-FEAT-008)
+    verso_content: str = Field(default="none")
+    verso_quotes: str = Field(default="")
+    verso_quote_style: str = Field(default="italic")
+    verso_quote_size: float = Field(default=14)
+    verso_images: list = Field(default_factory=list)
+    verso_image_captions: list = Field(default_factory=list)
+    verso_image_size: str = Field(default="medium")
+    verso_image_opacity: float = Field(default=100)
 
 
 class TypesetResponse(BaseModel):
@@ -297,6 +306,20 @@ def typeset(req: TypesetRequest):
         engine.TEXT_ALIGNMENT = req.text_alignment
         engine.HYPHEN_LANGUAGE = req.language
         engine.set_language_fonts(req.language)
+
+        # Verso fill config
+        import json as _json
+        engine.VERSO_CONTENT = req.verso_content
+        try:
+            engine.VERSO_QUOTES = _json.loads(req.verso_quotes) if req.verso_quotes else []
+        except Exception:
+            engine.VERSO_QUOTES = []
+        engine.VERSO_QUOTE_STYLE = req.verso_quote_style
+        engine.VERSO_QUOTE_SIZE = req.verso_quote_size
+        engine.VERSO_IMAGES = req.verso_images or []
+        engine.VERSO_IMAGE_CAPTIONS = req.verso_image_captions or []
+        engine.VERSO_IMAGE_SIZE = req.verso_image_size
+        engine.VERSO_IMAGE_OPACITY = req.verso_image_opacity
 
         # Apply trim size from user selection (supports all KDP trim sizes)
         engine.set_trim_size(req.trim_width, req.trim_height)
