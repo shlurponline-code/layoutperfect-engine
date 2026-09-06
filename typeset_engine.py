@@ -953,7 +953,7 @@ class GenericBookBuilder:
 
 class BookRenderer:
     def __init__(self, output_path):
-        self.c = canvas.Canvas(output_path, pagesize=(PAGE_W, PAGE_H))
+        self.c = canvas.Canvas(output_path, pagesize=(PAGE_W, PAGE_H), pdfVersion=(1, 7))
         self.c.setTitle("From These Streets")
         self.c.setAuthor("David Oldham")
         self.page_num = 0
