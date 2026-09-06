@@ -246,7 +246,9 @@ def append_author_central_page(pdf_path, trim_width, trim_height, author_central
         writer.add_blank_page(width=PAGE_W, height=PAGE_H)
 
     ac_reader = PdfReader(ac_path)
-    writer.add_page(ac_reader.pages[0])
+    # Use append() instead of add_page() to properly copy font resources
+    # from the Author Central PDF into the merged document.
+    writer.append(ac_reader)
 
     with open(pdf_path, "wb") as f:
         writer.write(f)
@@ -383,6 +385,8 @@ def typeset(req: TypesetRequest):
         # Append Author Central back page if requested
         if req.add_author_central_page and req.author_central_url:
             append_author_central_page(output_path, req.trim_width, req.trim_height, req.author_central_url)
+            # Re-verify font embedding after Author Central page merge
+            verify_font_embedding(output_path)
 
         # Count actual pages from the generated PDF
         from pypdf import PdfReader
