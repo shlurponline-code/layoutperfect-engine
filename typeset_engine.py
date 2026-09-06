@@ -935,13 +935,15 @@ class GenericBookBuilder:
         from pypdf import PdfReader, PdfWriter
         from pypdf.generic import ArrayObject, FloatObject, NameObject
         reader = PdfReader(self.output_path)
-        writer = PdfWriter()
-        for page in reader.pages:
+        # Use clone_from to preserve font embedding from the original ReportLab PDF.
+        # Manually adding pages via add_page() loses subsetted font resources,
+        # causing KDP/IngramSpark to reject the PDF for unembedded fonts (Helvetica).
+        writer = PdfWriter(clone_from=reader)
+        for page in writer.pages:
             page[NameObject('/TrimBox')] = ArrayObject([
                 FloatObject(0), FloatObject(0),
                 FloatObject(PAGE_W), FloatObject(PAGE_H),
             ])
-            writer.add_page(page)
         writer.add_metadata({
             '/Title': self.title,
             '/Author': self.author,
@@ -2202,16 +2204,16 @@ class BookBuilder:
         from pypdf.generic import ArrayObject, FloatObject, NameObject
         
         reader = PdfReader(self.output_path)
-        writer = PdfWriter()
-        for page in reader.pages:
+        # Use clone_from to preserve font embedding from the original ReportLab PDF.
+        writer = PdfWriter(clone_from=reader)
+        for page in writer.pages:
             page[NameObject('/TrimBox')] = ArrayObject([
                 FloatObject(0), FloatObject(0),
                 FloatObject(PAGE_W), FloatObject(PAGE_H),
             ])
-            writer.add_page(page)
         writer.add_metadata({
-            '/Title': 'From These Streets \u2014 Salfordians who Changed the World',
-            '/Author': 'David Oldham',
+            '/Title': getattr(self, 'title', 'Untitled'),
+            '/Author': getattr(self, 'author', 'Unknown'),
             '/Creator': 'Layout Perfect Typesetting Engine',
             '/Producer': 'ReportLab + pypdf',
         })
