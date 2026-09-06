@@ -1841,12 +1841,15 @@ class BookRenderer:
 
             total_h = len(wrapped_lines) * line_h + pre_gap + 2
             self._check_page(total_h + 10)
+            # Re-set font after potential page break — showPage() resets canvas font to Helvetica
+            self.c.setFont(font, sz)
 
             self.current_y -= pre_gap
             self.c.setFillColor(C_BODY)
 
-            # Draw all lines except the last
+            # Draw all lines except the last — setFont before EVERY drawString
             for line in wrapped_lines[:-1]:
+                self.c.setFont(font, sz)
                 self.c.drawString(x_start, self.current_y, line)
                 self.current_y -= line_h
 
@@ -1855,6 +1858,7 @@ class BookRenderer:
             self.c.setFont(font, sz)
             self.c.setFillColor(C_BODY)
             self.c.drawString(x_start, self.current_y, last_line)
+            self.c.setFont(font, sz)
             self.c.drawRightString(x_end, self.current_y, pg_str)
 
             # Dot leaders on last line
