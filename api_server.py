@@ -238,9 +238,9 @@ def append_author_central_page(pdf_path, trim_width, trim_height, author_central
 
     # Merge into main PDF, ensuring recto page
     reader = PdfReader(pdf_path)
-    writer = PdfWriter()
-    for page in reader.pages:
-        writer.add_page(page)
+    # Use clone_from to preserve font embedding from the original ReportLab PDF.
+    # Manually adding pages via add_page() can lose subsetted font resources.
+    writer = PdfWriter(clone_from=reader)
 
     if len(writer.pages) % 2 == 1:
         writer.add_blank_page(width=PAGE_W, height=PAGE_H)
@@ -252,6 +252,40 @@ def append_author_central_page(pdf_path, trim_width, trim_height, author_central
         writer.write(f)
 
     os.remove(ac_path)
+
+
+
+def verify_font_embedding(pdf_path):
+    """Check that all fonts in the PDF are embedded. KDP requires this."""
+    from pypdf import PdfReader
+    try:
+        reader = PdfReader(pdf_path)
+        unembedded = []
+        for page in reader.pages:
+            resources = page.get("/Resources")
+            if not resources:
+                continue
+            fonts = resources.get("/Font")
+            if not fonts:
+                continue
+            for font_name in fonts:
+                font_obj = fonts[font_name]
+                font = font_obj.get_object() if hasattr(font_obj, 'get_object') else font_obj
+                font_desc = font.get("/FontDescriptor")
+                if font_desc:
+                    fd = font_desc.get_object() if hasattr(font_desc, 'get_object') else font_desc
+                    if not (fd.get("/FontFile") or fd.get("/FontFile2") or fd.get("/FontFile3")):
+                        unembedded.append(str(font_name))
+                else:
+                    unembedded.append(str(font_name))
+        if unembedded:
+            print(f"WARNING: Unembedded fonts detected: {unembedded}")
+        else:
+            print("Font embedding check: ALL FONTS EMBEDDED")
+        return unembedded
+    except Exception as e:
+        print(f"Font embedding check failed: {e}")
+        return []
 
 
 @app.post("/typeset", response_model=TypesetResponse)
@@ -342,6 +376,9 @@ def typeset(req: TypesetRequest):
         print(f"BLOCK_TYPES: {block_types}")
         
         builder.build()
+
+        # Verify font embedding for KDP compliance
+        verify_font_embedding(output_path)
 
         # Append Author Central back page if requested
         if req.add_author_central_page and req.author_central_url:
