@@ -966,7 +966,8 @@ class BookRenderer:
         self.image_log = []  # [(filename, page, size_hint, dpi, status)]
         self.header_text = ''  # set by builder
         self.toc_title = 'Table of Contents'  # localised by builder
-        self.chapter_end_ornament = 'fleuron'  # fleuron | divider | none â used in running header
+        self.chapter_end_ornament = 'fleuron'
+        self.verso_counter = 0  # fleuron | divider | none â used in running header
         
     def _margins(self):
         if self.page_num % 2 == 1:  # Recto: gutter left
