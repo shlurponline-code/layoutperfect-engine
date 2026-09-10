@@ -415,6 +415,8 @@ def parse_manuscript(filepath):
                         continue
                     if pp.startswith('## ') or pp.startswith('# '):
                         break
+                if pp.startswith('### '):
+                    pp = pp[4:].strip()
                 intro.append(pp)
                 i += 1
             
@@ -607,6 +609,10 @@ def parse_manuscript_generic(filepath):
                 pp = paras[i].strip()
                 if pp.startswith('# '):
                     break
+                if pp.startswith('### '):
+                    body.append({'type': 'subheading', 'text': pp[4:].strip()})
+                    i += 1
+                    continue
                 if pp in ('***', '* * *') or (len(pp) >= 3 and all(c == '-' for c in pp)):
                     body.append({'type': 'scene_break'})
                     i += 1
@@ -628,6 +634,10 @@ def parse_manuscript_generic(filepath):
             if not body and title in ('Supplementary Material', 'Further Reading'):
                 continue
             
+            # Rule 1: Remove trailing scene breaks — redundant before a chapter break.
+            while body and body[-1].get('type') == 'scene_break':
+                body.pop()
+            
             # Part headings typically have no body (just a title page)
             is_part = (title.lower().startswith('part ') and len(body) == 0)
             
@@ -648,6 +658,10 @@ def parse_manuscript_generic(filepath):
                 pp = paras[i].strip()
                 if pp.startswith('# ') or pp.startswith('## '):
                     break
+                if pp.startswith('### '):
+                    body.append({'type': 'subheading', 'text': pp[4:].strip()})
+                    i += 1
+                    continue
                 if pp in ('***', '* * *') or (len(pp) >= 3 and all(c == '-' for c in pp)):
                     body.append({'type': 'scene_break'})
                     i += 1
@@ -658,6 +672,8 @@ def parse_manuscript_generic(filepath):
                     continue
                 body.append({'type': 'para', 'text': pp})
                 i += 1
+            while body and body[-1].get('type') == 'scene_break':
+                body.pop()
             blocks.append({
                 'type': 'chapter', 'title': title,
                 'subtitle': '', 'body': body,
@@ -863,13 +879,25 @@ class GenericBookBuilder:
                 for item in blk.get('body', []):
                     if item['type'] == 'para':
                         r._draw_content(item['text'])
-                    elif item['type'] == 'scene_break':
+                    elif item['type'] == 'subheading':
                         r._check_page(40)
-                        r.current_y -= 12
+                        r.current_y -= 16
+                        r._ctxt(r.current_y, item['text'], 'GarI', 14, C_BROWN)
+                        r.current_y -= 24
+                    elif item['type'] == 'scene_break':
+                        # Rules 3 & 4: Skip scene break if at top of page
+                        # (nothing drawn yet on this page, or after a page break).
+                        top_y = PAGE_H - MARGIN_TOP - 10
+                        if r.current_y >= top_y - 5:
+                            continue
+                        r._check_page(40)
+                        if r.current_y >= top_y - 5:
+                            continue
+                        r.current_y -= 14
                         cx = r._lm() + r._tw() / 2
                         _sb = r.tpl.get('scene_break', 'dots') if hasattr(r, 'tpl') else 'dots'
                         draw_scene_break(r.c, r.current_y, cx, _sb, C_MID)
-                        r.current_y -= 20
+                        r.current_y -= 14
                     elif item['type'] == 'image':
                         r._draw_content(item['text'])
                 
