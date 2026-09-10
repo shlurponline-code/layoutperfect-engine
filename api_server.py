@@ -393,6 +393,17 @@ def typeset(req: TypesetRequest):
         reader = PdfReader(output_path)
         page_count = len(reader.pages)
 
+        # Quality pass: Gutter validation for KDP compliance
+        gutter_valid = True
+        gutter_msg = 'OK'
+        try:
+            from typeset_engine import validate_gutter
+            gutter_valid, req_gutter, actual_gutter, gutter_msg = validate_gutter(page_count)
+            if not gutter_valid:
+                print(f'GUTTER WARNING: {gutter_msg}')
+        except Exception as gutter_err:
+            print(f'Gutter validation skipped: {gutter_err}')
+
         # Calculate spine
         factor = 0.002252 if req.paper_type == "white" else 0.002347
         spine_inches = page_count * factor
@@ -444,7 +455,7 @@ def typeset(req: TypesetRequest):
             spine_width_mm=round(spine_mm, 1),
             word_count=word_count,
             file_size_bytes=file_size,
-            message=f"Typeset complete: {page_count} pages at {req.trim_width} x {req.trim_height} inches",
+            message=f"Typeset complete: {page_count} pages at {req.trim_width} x {req.trim_height} inches" + (f" | WARNING: {gutter_msg}" if not gutter_valid else ""),
             pdf_base64=pdf_base64,
             filename=filename,
             epub_base64=epub_b64,
