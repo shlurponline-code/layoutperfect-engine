@@ -1393,6 +1393,9 @@ class BookRenderer:
         text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
         text = text.replace('\\"', '"').replace("\\'", "'")
         
+        text = re.sub(r'__([^_]+)__', r'\1', text)
+        text = re.sub(r'`([^`]+)`', r'\1', text)
+        
         # Apply hyphenation for justified text
         if align == 'justified' and HYPHENATE:
             text = add_soft_hyphens(text, HYPHEN_LANGUAGE)
