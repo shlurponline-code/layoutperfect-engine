@@ -309,6 +309,26 @@ def join_paragraphs(lines):
 # MANUSCRIPT PARSER
 # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
+def validate_gutter(page_count, margin_inside_inch=1.0, inner_margin_inch=0.606):
+    """Validate gutter meets KDP requirements based on page count.
+    Returns (is_valid, required_gutter_inches, actual_gutter_inches, message)."""
+    if page_count <= 150:
+        required = 0.375
+    elif page_count <= 300:
+        required = 0.5
+    elif page_count <= 500:
+        required = 0.625
+    elif page_count <= 700:
+        required = 0.75
+    else:
+        required = 0.875
+    actual_gutter = margin_inside_inch - inner_margin_inch
+    if actual_gutter < required:
+        return (False, required, actual_gutter,
+                f'Gutter {actual_gutter:.3f}" is less than KDP requirement {required:.3f}" for {page_count} pages')
+    return (True, required, actual_gutter, 'OK')
+
+
 def parse_manuscript(filepath):
     with open(filepath, 'r', encoding='utf-8') as f:
         raw_lines = f.read().split('\n')
@@ -880,7 +900,9 @@ class GenericBookBuilder:
                     if item['type'] == 'para':
                         r._draw_content(item['text'])
                     elif item['type'] == 'subheading':
-                        r._check_page(40)
+                        # Quality pass: Stranded heading check — need space
+                        # for heading + at least 2 body lines after it.
+                        r._check_page(80)
                         r.current_y -= 16
                         r._ctxt(r.current_y, item['text'], 'GarI', 14, C_BROWN)
                         r.current_y -= 24
@@ -890,8 +912,13 @@ class GenericBookBuilder:
                         top_y = PAGE_H - MARGIN_TOP - 10
                         if r.current_y >= top_y - 5:
                             continue
+                        # Rule 3: Skip if not enough space for break + 2 lines after
+                        if r.current_y - 64 < MARGIN_BOTTOM:
+                            continue
                         r._check_page(40)
                         if r.current_y >= top_y - 5:
+                            continue
+                        if r.current_y - 64 < MARGIN_BOTTOM:
                             continue
                         r.current_y -= 14
                         cx = r._lm() + r._tw() / 2
@@ -1374,7 +1401,25 @@ class BookRenderer:
         min_tw = PAGE_W - MARGIN_INSIDE - MARGIN_OUTSIDE
         lines = self._wrap(text, font, sz, min_tw - indent)
         
+        # Quality pass: Orphan control — if fewer than 2 lines fit,
+        # start a new page so the paragraph isn't stranded with 1 line.
+        if len(lines) >= 2:
+            space_left = self.current_y - MARGIN_BOTTOM
+            if space_left < leading * 2:
+                self._finish_page()
+                self._new_page()
+                self.current_y = PAGE_H - MARGIN_TOP - 10
+        
         for i, line_text in enumerate(lines):
+            # Quality pass: Widow control — if this is the second-to-last
+            # line and the last line would be alone at the top of a new
+            # page, push this line to the next page too (keep 2 together).
+            if (i == len(lines) - 2 and len(lines) >= 3 and
+                self.current_y - leading < MARGIN_BOTTOM + leading):
+                self._finish_page()
+                self._new_page()
+                self.current_y = PAGE_H - MARGIN_TOP - 10
+            
             self._check_page()
             lm = self._lm() + indent
             self.c.setFont(font, sz)
