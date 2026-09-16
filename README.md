@@ -2,3 +2,7 @@
 Python/ReportLab typesetting engine for Layout Perfect (layoutperfect.com).
 Deployed as a FastAPI service. Called by the Base44 frontend.
 A D&H Publishing International tool.
+
+## Deployment
+
+Auto-deployed on Railway from main branch.
