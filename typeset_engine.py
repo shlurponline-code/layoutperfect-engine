@@ -90,10 +90,18 @@ pdfmetrics.registerFontFamily('Mono', normal='Mono', bold='MonoB', italic='MonoI
 
 # ── Multilingual support ─────────────────────────────────────────────
 _CJK_FONT_CANDIDATES = [
+    # TrueType fonts (ReportLab-compatible) — checked first
+    '/usr/share/fonts/truetype/arphic/uming.ttc',
+    '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+    '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+    # Noto CJK (CFF/PostScript outlines — ReportLab cannot embed these)
     '/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc',
     '/usr/share/fonts/truetype/noto/NotoSerifCJK-Regular.ttc',
 ]
 _CJK_FONT_CANDIDATES_BOLD = [
+    '/usr/share/fonts/truetype/arphic/ukai.ttc',
+    '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+    '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
     '/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc',
     '/usr/share/fonts/truetype/noto/NotoSerifCJK-Bold.ttc',
 ]
