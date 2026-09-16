@@ -105,6 +105,42 @@ def _find_cjk_font(bold=False):
             return p
     return None
 
+# Always register CJK fonts so Chinese/Japanese/Korean characters render
+# correctly regardless of the book's language setting.
+_CJK_REGULAR = _find_cjk_font(bold=False)
+_CJK_BOLD_PATH = _find_cjk_font(bold=True)
+if _CJK_REGULAR:
+    pdfmetrics.registerFont(TTFont('CJK',   _CJK_REGULAR, subfontIndex=0))
+    pdfmetrics.registerFont(TTFont('CJKB',  _CJK_BOLD_PATH or _CJK_REGULAR, subfontIndex=0))
+    pdfmetrics.registerFont(TTFont('CJKI',  _CJK_REGULAR, subfontIndex=0))
+    pdfmetrics.registerFont(TTFont('CJKBI', _CJK_BOLD_PATH or _CJK_REGULAR, subfontIndex=0))
+    pdfmetrics.registerFontFamily('CJK', normal='CJK', bold='CJKB',
+                                  italic='CJKI', boldItalic='CJKBI')
+
+def has_cjk(text):
+    """Check if text contains CJK (Chinese, Japanese, Korean) characters."""
+    if not text:
+        return False
+    for ch in text:
+        cp = ord(ch)
+        if (0x4E00 <= cp <= 0x9FFF or   # CJK Unified Ideographs
+            0x3400 <= cp <= 0x4DBF or   # CJK Extension A
+            0x3000 <= cp <= 0x303F or   # CJK Symbols and Punctuation
+            0x3040 <= cp <= 0x30FF or   # Hiragana + Katakana
+            0xFF00 <= cp <= 0xFFEF):    # Halfwidth/Fullwidth Forms
+            return True
+    return False
+
+def cjk_aware_font(text, font):
+    """Return CJK font equivalent if text contains CJK characters."""
+    if has_cjk(text) and _CJK_REGULAR:
+        mapping = {
+            'Gar': 'CJK', 'GarB': 'CJKB', 'GarI': 'CJKI', 'GarBI': 'CJKBI',
+            'Sans': 'CJK', 'SansB': 'CJKB', 'SansI': 'CJKI', 'SansBI': 'CJKBI',
+        }
+        return mapping.get(font, 'CJK')
+    return font
+
 QUOTE_STYLES = {
     'en': {'open': '\u201C', 'close': '\u201D', 'single_open': '\u2018', 'single_close': '\u2019'},
     'fr': {'open': '\u00AB\u00A0', 'close': '\u00A0\u00BB', 'single_open': '\u2018', 'single_close': '\u2019'},
@@ -764,9 +800,10 @@ class GenericBookBuilder:
         title_sz = 42
         title_lines = [self.title]
         
+        title_font = cjk_aware_font(self.title, 'GarB')
         while title_sz >= 18:
-            r.c.setFont('GarB', title_sz)
-            single_w = r.c.stringWidth(self.title, 'GarB', title_sz)
+            r.c.setFont(title_font, title_sz)
+            single_w = r.c.stringWidth(self.title, title_font, title_sz)
             
             if single_w <= tw:
                 # Fits on one line
@@ -780,8 +817,8 @@ class GenericBookBuilder:
             for split_at in range(1, len(words)):
                 line1 = ' '.join(words[:split_at])
                 line2 = ' '.join(words[split_at:])
-                w1 = r.c.stringWidth(line1, 'GarB', title_sz)
-                w2 = r.c.stringWidth(line2, 'GarB', title_sz)
+                w1 = r.c.stringWidth(line1, title_font, title_sz)
+                w2 = r.c.stringWidth(line2, title_font, title_sz)
                 max_w = max(w1, w2)
                 if max_w < best_max_w:
                     best_max_w = max_w
@@ -795,7 +832,7 @@ class GenericBookBuilder:
         
         # Render title lines
         for tl in title_lines:
-            r._ctxt(y, tl, 'GarB', title_sz, C_BODY)
+            r._ctxt(y, tl, cjk_aware_font(tl, 'GarB'), title_sz, C_BODY)
             y -= title_sz + 8
         
         y -= 8
@@ -1255,12 +1292,14 @@ class BookRenderer:
         self._new_page(suppress=True)
 
     def _ctxt(self, y, text, font, sz, color=C_BODY):
+        font = cjk_aware_font(text, font)
         self.c.setFont(font, sz)
         self.c.setFillColor(color)
         self.c.drawCentredString(self._lm() + self._tw() / 2, y, text)
 
     def _ctxt_block(self, y, text, font, sz, color=C_BODY):
         """Center text within the text block (accounts for gutter/inside-outside margins)."""
+        font = cjk_aware_font(text, font)
         self.c.setFont(font, sz)
         self.c.setFillColor(color)
         self.c.drawCentredString(self._lm() + self._tw() / 2, y, text)
@@ -1324,7 +1363,24 @@ class BookRenderer:
         return y - 8
     
     def _wrap(self, text, font, sz, max_w):
+        font = cjk_aware_font(text, font)
         self.c.setFont(font, sz)
+        if has_cjk(text):
+            # CJK-aware wrapping: break by character for CJK text since
+            # Chinese/Japanese don't use spaces between words.
+            lines = []
+            cur = ''
+            for ch in text:
+                test = cur + ch
+                if self.c.stringWidth(test, font, sz) <= max_w:
+                    cur = test
+                else:
+                    if cur:
+                        lines.append(cur)
+                    cur = ch
+            if cur:
+                lines.append(cur)
+            return lines or ['']
         words = text.split()
         lines = []
         cur = ''
@@ -1387,6 +1443,8 @@ class BookRenderer:
             align = 'center' if centered else tpl.get('text_alignment', TEXT_ALIGNMENT)
         if indent == 0 and tpl.get('first_line_indent', 0):
             indent = tpl.get('first_line_indent', 0)
+        # Use CJK font if the text contains Chinese/Japanese/Korean characters
+        font = cjk_aware_font(text, font)
         # Strip remaining markdown formatting
         text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
         text = re.sub(r'\*([^*]+)\*', r'\1', text)
