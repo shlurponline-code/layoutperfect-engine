@@ -2278,12 +2278,12 @@ class BookRenderer:
                 l1 = ' '.join(words[:mid])
                 l2 = ' '.join(words[mid:])
                 if title_pos in ('left', 'left_below'):
-                    self.c.setFont(title_font, title_sz)
-                    self.c.setFillColor(C_BODY)
-                    self.c.drawString(self._lm(), self.current_y, l1)
-                    self.current_y -= title_sz + 4
-                    self.c.drawString(self._lm(), self.current_y, l2)
-                    self.current_y -= title_sz + 8
+                    for tl in self._wrap(title_text, title_font, title_sz, tw):
+                        self.c.setFont(title_font, title_sz)
+                        self.c.setFillColor(C_BODY)
+                        self.c.drawString(self._lm(), self.current_y, tl)
+                        self.current_y -= title_sz + 4
+                    self.current_y -= 4
                 else:
                     self.current_y = self._ctxt_wrapped(self.current_y, l1, title_font, title_sz, C_BODY)
                     self.current_y -= 8
