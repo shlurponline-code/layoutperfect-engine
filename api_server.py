@@ -216,6 +216,18 @@ def append_author_central_page(pdf_path, trim_width, trim_height, author_central
         y -= 14.5
         c.drawString(MARGIN, y, line)
 
+    # Quality-assurance note - invites readers who spot an issue to reach
+    # the publisher directly via the QR code, so genuine errors are caught
+    # before they become public reviews.
+    qa_msg = ("Spotted something that doesn't look right? We'd love to hear "
+              "from you. Scan the code below to reach us directly.")
+    y -= 22
+    c.setFont("GarI", 10.5)
+    c.setFillColor(C_DARK)
+    for line in wrap_text(qa_msg, "GarI", 10.5, text_w):
+        y -= 14.5
+        c.drawCentredString(PAGE_W / 2, y, line)
+
     # QR code (25mm square, centered)
     qr_size = 25 * 72 / 25.4
     qr_x = (PAGE_W - qr_size) / 2
