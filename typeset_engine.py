@@ -312,6 +312,15 @@ def join_paragraphs(lines):
             paragraphs.append(stripped)
             continue
         
+        # Markdown table rows - keep each row as its own block so the
+        # parser can group them into a table later.
+        if len(stripped) >= 3 and stripped.startswith('|') and stripped.endswith('|'):
+            if current:
+                paragraphs.append(' '.join(current))
+                current = []
+            paragraphs.append(stripped)
+            continue
+
         # Headings
         if stripped.startswith('#'):
             if current:
@@ -345,8 +354,61 @@ def join_paragraphs(lines):
     
     if current:
         paragraphs.append(' '.join(current))
-    
+
     return paragraphs
+
+
+def is_table_line(line):
+    """A markdown table row starts and ends with a pipe."""
+    stripped = line.strip()
+    return len(stripped) >= 3 and stripped.startswith('|') and stripped.endswith('|')
+
+
+def is_table_separator(line):
+    """The separator row contains only pipes, dashes, spaces and colons."""
+    stripped = line.strip()
+    if not stripped.startswith('|'):
+        return False
+    inner = stripped.strip('|')
+    return '-' in inner and bool(re.match(r'^[\s\-:|]+$', inner))
+
+
+def parse_table_row(line):
+    """Split a table row into cell strings."""
+    stripped = line.strip()
+    if stripped.startswith('|'):
+        stripped = stripped[1:]
+    if stripped.endswith('|'):
+        stripped = stripped[:-1]
+    return [cell.strip() for cell in stripped.split('|')]
+
+
+def parse_table_lines(table_lines):
+    """Parse collected table lines into (headers, rows). Skips the
+    separator row and pads short rows to a uniform column count."""
+    headers = []
+    rows = []
+    found_separator = False
+    for line in table_lines:
+        if is_table_separator(line):
+            found_separator = True
+            continue
+        cells = parse_table_row(line)
+        if not found_separator and not headers:
+            headers = cells
+        else:
+            rows.append(cells)
+    if not headers:
+        return None
+    num_cols = len(headers)
+    for row in rows:
+        num_cols = max(num_cols, len(row))
+    while len(headers) < num_cols:
+        headers.append('')
+    for row in rows:
+        while len(row) < num_cols:
+            row.append('')
+    return headers, rows
 
 
 # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
@@ -681,6 +743,16 @@ def parse_manuscript_generic(filepath):
                     body.append({'type': 'scene_break'})
                     i += 1
                     continue
+                if is_table_line(pp):
+                    table_lines = []
+                    while i < len(paras) and is_table_line(paras[i].strip()):
+                        table_lines.append(paras[i].strip())
+                        i += 1
+                    parsed = parse_table_lines(table_lines)
+                    if parsed:
+                        theaders, trows = parsed
+                        body.append({'type': 'table', 'headers': theaders, 'rows': trows})
+                    continue
                 if IMAGE_PATTERN.match(pp):
                     body.append({'type': 'image', 'text': pp})
                     i += 1
@@ -729,6 +801,16 @@ def parse_manuscript_generic(filepath):
                 if pp in ('***', '* * *') or (len(pp) >= 3 and all(c == '-' for c in pp)):
                     body.append({'type': 'scene_break'})
                     i += 1
+                    continue
+                if is_table_line(pp):
+                    table_lines = []
+                    while i < len(paras) and is_table_line(paras[i].strip()):
+                        table_lines.append(paras[i].strip())
+                        i += 1
+                    parsed = parse_table_lines(table_lines)
+                    if parsed:
+                        theaders, trows = parsed
+                        body.append({'type': 'table', 'headers': theaders, 'rows': trows})
                     continue
                 if IMAGE_PATTERN.match(pp):
                     body.append({'type': 'image', 'text': pp})
@@ -972,6 +1054,8 @@ class GenericBookBuilder:
                         r.current_y -= 14
                     elif item['type'] == 'image':
                         r._draw_content(item['text'])
+                    elif item['type'] == 'table':
+                        r.render_table(item['headers'], item['rows'])
                 
                 # Chapter end divider if next block is a part or it's the last
                 if i + 1 < len(self.blocks):
@@ -1855,6 +1939,114 @@ class BookRenderer:
             self._draw_image(caption, img_path, size_hint)
         else:
             self._draw_para(text)
+
+    def render_table(self, headers, rows):
+        """Render a markdown table as a formatted grid on the canvas.
+        Handles page breaks within the table and repeats the header row
+        on continuation pages so columns stay labelled."""
+        if not headers:
+            return
+        HEADER_BG = HexColor('#2C3E50')
+        HEADER_TEXT = HexColor('#FFFFFF')
+        ROW_EVEN_BG = HexColor('#F8F9FA')
+        ROW_ODD_BG = HexColor('#FFFFFF')
+        GRID_COLOR = HexColor('#DEE2E6')
+        HEADER_BORDER = HexColor('#1A252F')
+        TBL_FONT = 'Gar'
+        TBL_FONT_BOLD = 'GarB'
+        TBL_SZ = 9
+        TBL_LD = 12
+        PAD = 5
+        MIN_COL_W = 36
+
+        def clean_cell(text):
+            text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+            text = re.sub(r'\*([^*]+)\*', r'\1', text)
+            text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+            return text.strip()
+
+        num_cols = len(headers)
+        norm_headers = [clean_cell(h) for h in headers]
+        norm_rows = []
+        for row in rows:
+            cells = [clean_cell(c) for c in row[:num_cols]]
+            while len(cells) < num_cols:
+                cells.append('')
+            norm_rows.append(cells)
+
+        tw = self._tw()
+        max_lengths = [0] * num_cols
+        for i, h in enumerate(norm_headers):
+            max_lengths[i] = max(max_lengths[i], len(h))
+        for row in norm_rows:
+            for i, cell in enumerate(row):
+                if i < num_cols:
+                    max_lengths[i] = max(max_lengths[i], len(cell))
+        total = sum(max_lengths) or 1
+        col_widths = [max((l / total) * tw, MIN_COL_W) for l in max_lengths]
+        scale = tw / sum(col_widths)
+        col_widths = [w * scale for w in col_widths]
+
+        def draw_row(cells, is_header, row_idx):
+            font = TBL_FONT_BOLD if is_header else TBL_FONT
+            text_color = HEADER_TEXT if is_header else C_BODY
+            wrapped = []
+            for ci, cell in enumerate(cells):
+                cw = col_widths[ci] - 2 * PAD
+                wl = self._wrap(cell, font, TBL_SZ, max(cw, 4))
+                wrapped.append(wl)
+            max_lines = max([len(wl) for wl in wrapped] or [1])
+            row_h = max_lines * TBL_LD + 2 * PAD
+
+            if self.current_y - row_h < MARGIN_BOTTOM:
+                self._finish_page()
+                self._new_page()
+                self.current_y = PAGE_H - MARGIN_TOP - 10
+                if not is_header:
+                    draw_row(norm_headers, True, 0)
+
+            lm = self._lm()
+            rect_top = self.current_y
+            rect_bottom = rect_top - row_h
+
+            if is_header:
+                bg = HEADER_BG
+            else:
+                bg = ROW_EVEN_BG if row_idx % 2 == 0 else ROW_ODD_BG
+            self.c.setFillColor(bg)
+            self.c.rect(lm, rect_bottom, tw, row_h, fill=1, stroke=0)
+
+            for ci, wl in enumerate(wrapped):
+                cx = lm + sum(col_widths[:ci]) + PAD
+                self.c.setFont(cjk_aware_font(cells[ci], font), TBL_SZ)
+                self.c.setFillColor(text_color)
+                baseline = rect_top - PAD - TBL_SZ * 0.75
+                for li, line in enumerate(wl):
+                    self.c.drawString(cx, baseline - li * TBL_LD, line)
+
+            self.c.setStrokeColor(GRID_COLOR)
+            self.c.setLineWidth(0.5)
+            self.c.line(lm, rect_top, lm + tw, rect_top)
+            self.c.line(lm, rect_bottom, lm + tw, rect_bottom)
+            x = lm
+            for ci in range(num_cols + 1):
+                self.c.line(x, rect_top, x, rect_bottom)
+                if ci < num_cols:
+                    x += col_widths[ci]
+
+            if is_header:
+                self.c.setStrokeColor(HEADER_BORDER)
+                self.c.setLineWidth(1.5)
+                self.c.line(lm, rect_bottom, lm + tw, rect_bottom)
+
+            self.current_y = rect_bottom
+
+        self._check_page(40)
+        self.current_y -= 12
+        draw_row(norm_headers, True, 0)
+        for ri, row in enumerate(norm_rows):
+            draw_row(row, False, ri + 1)
+        self.current_y -= 12
     
     # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     # PAGE TYPES
