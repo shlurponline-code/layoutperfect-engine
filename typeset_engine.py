@@ -1036,9 +1036,9 @@ class GenericBookBuilder:
                         r._check_page(80)
                         r.current_y -= 16
                         if item.get('level') == 1:
-                        r._ctxt(r.current_y, item['text'], 'GarB', 15, C_BODY)
-                    else:
-                        r._ctxt(r.current_y, item['text'], 'GarI', 14, C_BROWN)
+                            r._ctxt(r.current_y, item['text'], 'GarB', 15, C_BODY)
+                        else:
+                            r._ctxt(r.current_y, item['text'], 'GarI', 14, C_BROWN)
                         r.current_y -= 24
                     elif item['type'] == 'scene_break':
                         # Rules 3 & 4: Skip scene break if at top of page
