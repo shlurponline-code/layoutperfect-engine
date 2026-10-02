@@ -349,6 +349,24 @@ def join_paragraphs(lines):
             paragraphs.append(stripped)
             continue
         
+        # Ingredient / bullet lines - keep every item on its own line so a
+        # recipe list doesn't merge into one run-on paragraph.
+        if stripped.startswith('- ') or stripped.startswith('* ') or stripped.startswith('\u2022 '):
+            if current:
+                paragraphs.append(' '.join(current))
+                current = []
+            paragraphs.append(stripped)
+            continue
+
+        # Bold label lines (**Cut:** Beef cheek) - keep separate so a recipe's
+        # metadata block doesn't collapse into one paragraph.
+        if re.match(r'^\*\*[^*]{1,32}:\*\*', stripped):
+            if current:
+                paragraphs.append(' '.join(current))
+                current = []
+            paragraphs.append(stripped)
+            continue
+
         # Normal text â accumulate
         current.append(stripped)
     
@@ -1031,16 +1049,13 @@ class GenericBookBuilder:
                     if item['type'] == 'para':
                         r._draw_content(item['text'])
                     elif item['type'] == 'subheading':
-                        # Quality pass: Stranded heading check — need space
-                        # for heading + at least 2 body lines after it.
-                        r._check_page(80)
-                        r.current_y -= 16
-                        if item.get('level') == 1:
-                            r._ctxt(r.current_y, item['text'], 'GarB', 15, C_BODY)
-                        else:
-                            r._ctxt(r.current_y, item['text'], 'GarI', 14, C_BROWN)
-                        r.current_y -= 24
+                        # Sub-heading styling comes from the active template.
+                        r.render_subheading(item['text'], item.get('level', 1))
                     elif item['type'] == 'scene_break':
+                        _sb = r.tpl.get('scene_break', 'dots') if hasattr(r, 'tpl') else 'dots'
+                        # A template can suppress scene breaks entirely (cookbook).
+                        if _sb == 'none':
+                            continue
                         # Rules 3 & 4: Skip scene break if at top of page
                         # (nothing drawn yet on this page, or after a page break).
                         top_y = PAGE_H - MARGIN_TOP - 10
@@ -1056,7 +1071,6 @@ class GenericBookBuilder:
                             continue
                         r.current_y -= 14
                         cx = r._lm() + r._tw() / 2
-                        _sb = r.tpl.get('scene_break', 'dots') if hasattr(r, 'tpl') else 'dots'
                         draw_scene_break(r.c, r.current_y, cx, _sb, C_MID)
                         r.current_y -= 14
                     elif item['type'] == 'image':
@@ -1938,16 +1952,780 @@ class BookRenderer:
         
         self.current_y -= 2
     
+    def _tpl_color(self, key, default=C_BROWN):
+        """Resolve a template colour key (hex string) to a ReportLab colour."""
+        val = getattr(self, 'tpl', {}).get(key)
+        if isinstance(val, str) and val.startswith('#'):
+            try:
+                return HexColor(val)
+            except Exception:
+                return default
+        return default
+
+    def _draw_accent_rule(self, y, width=None, lw=0.6):
+        """Hairline rule drawn in the template's accent colour."""
+        tpl = getattr(self, 'tpl', {})
+        self.c.setStrokeColor(self._tpl_color('accent_color', C_BROWN))
+        self.c.setLineWidth(tpl.get('accent_rule_width', lw))
+        w = width if width is not None else self._tw()
+        self.c.line(self._lm(), y, self._lm() + w, y)
+
+    def render_subheading(self, text, level=1):
+        """Sub-heading inside a chapter. Styling is template-driven; the defaults
+        keep the classic centred serif treatment used by the older templates."""
+        tpl = getattr(self, 'tpl', {})
+        if level == 1:
+            font = tpl.get('subhead_font', 'GarB')
+            sz = tpl.get('subhead_size', 15)
+            align = tpl.get('subhead_align', 'center')
+            color = self._tpl_color('subhead_color', C_BODY)
+            rule = tpl.get('subhead_rule_above', 'none')
+            need = tpl.get('subhead_break_need', 80)
+            before = tpl.get('subhead_space_before', 16)
+            after = tpl.get('subhead_space_after', 4)
+        else:
+            font = tpl.get('subhead2_font', 'GarI')
+            sz = tpl.get('subhead2_size', 14)
+            align = tpl.get('subhead2_align', 'center')
+            color = self._tpl_color('subhead2_color', C_BROWN)
+            rule = 'none'
+            need = tpl.get('subhead2_break_need', 80)
+            before = tpl.get('subhead2_space_before', 16)
+            after = tpl.get('subhead2_space_after', 4)
+        plain = text.strip()
+        plain = re.sub(r'\*\*([^*]+)\*\*', r'\1', plain)
+        plain = re.sub(r'\*([^*]+)\*', r'\1', plain)
+        # Quality pass: keep a heading with at least a couple of lines after it.
+        self._check_page(need)
+        self.current_y -= before
+        if rule and rule != 'none':
+            self._draw_accent_rule(self.current_y)
+            self.current_y -= tpl.get('rule_gap', 10)
+        font = cjk_aware_font(plain, font)
+        lines = self._wrap(plain, font, sz, self._tw())
+        for line in lines:
+            self._check_page(sz * 1.4)
+            self.c.setFont(font, sz)
+            self.c.setFillColor(color)
+            if align == 'left':
+                self.c.drawString(self._lm(), self.current_y, line)
+            else:
+                self.c.drawCentredString(self._lm() + self._tw() / 2, self.current_y, line)
+            self.current_y -= sz * 1.3
+        self.current_y -= after
+
+    def _draw_list_item(self, text):
+        """Ingredient / bullet item, styled from the active template."""
+        tpl = getattr(self, 'tpl', {})
+        sz = tpl.get('list_size', tpl.get('body_size', BODY_SZ))
+        leading = tpl.get('list_leading', sz * 1.4)
+        indent = tpl.get('list_indent', 0)
+        marker = tpl.get('list_marker', '')
+        font = cjk_aware_font(text, tpl.get('list_font', tpl.get('body_font', 'Gar')))
+        body = re.sub(r'^[-*\u2022]\s*', '', text.strip())
+        body = re.sub(r'\*\*([^*]+)\*\*', r'\1', body)
+        body = re.sub(r'\*([^*]+)\*', r'\1', body)
+        self.c.setFont(font, sz)
+        mw = self.c.stringWidth(marker + ' ', font, sz) if marker else 0
+        lines = self._wrap(body, font, sz, self._tw() - indent - mw) or ['']
+        for j, line in enumerate(lines):
+            self._check_page(leading)
+            if j == 0 and marker:
+                self.c.setFont(font, sz)
+                self.c.setFillColor(self._tpl_color('accent_color', C_BROWN))
+                self.c.drawString(self._lm() + indent, self.current_y, marker)
+            self.c.setFont(font, sz)
+            self.c.setFillColor(C_BODY)
+            self.c.drawString(self._lm() + indent + mw, self.current_y, line)
+            self.current_y -= leading
+        self.current_y -= tpl.get('list_space_after', 1)
+
+    def _draw_sublabel(self, text):
+        """Sub-label such as Ingredients / Method / Butcher's Tip."""
+        tpl = getattr(self, 'tpl', {})
+        label = text.strip().strip('*').strip()
+        font = cjk_aware_font(label, tpl.get('sublabel_font', 'SansB'))
+        sz = tpl.get('sublabel_size', 10)
+        self._check_page(tpl.get('sublabel_break_need', 30))
+        self.current_y -= tpl.get('sublabel_space_before', 8)
+        self.c.setFont(font, sz)
+        self.c.setFillColor(self._tpl_color('sublabel_color', self._tpl_color('accent_color', C_BROWN)))
+        self.c.drawString(self._lm(), self.current_y, label)
+        self.current_y -= sz + tpl.get('sublabel_space_after', 5)
+
+    def _draw_meta_line(self, label, value):
+        """Compact metadata line such as **Cut:** Beef cheek (joue de boeuf)."""
+        tpl = getattr(self, 'tpl', {})
+        sz = tpl.get('meta_size', 9)
+        leading = tpl.get('meta_leading', sz * 1.3)
+        font = cjk_aware_font(value, tpl.get('meta_font', 'Sans'))
+        bold = tpl.get('meta_label_font', 'SansB')
+        self._check_page(leading)
+        self.c.setFont(bold, sz)
+        lbl = label.strip().rstrip(':')
+        lw_ = self.c.stringWidth(lbl + ': ', bold, sz)
+        self.c.setFillColor(self._tpl_color('meta_label_color', self._tpl_color('accent_color', C_BROWN)))
+        self.c.drawString(self._lm(), self.current_y, lbl + ':')
+        vals = self._wrap(value.strip(), font, sz, self._tw() - lw_) or ['']
+        for k, v in enumerate(vals):
+            if k:
+                self._check_page(leading)
+            self.c.setFont(font, sz)
+            self.c.setFillColor(C_BODY)
+            self.c.drawString(self._lm() + lw_, self.current_y, v)
+            self.current_y -= leading
+        self.current_y -= tpl.get('meta_space_after', 1)
+
     def _draw_content(self, text):
-        """Route content: render as image if it's an image reference, otherwise as paragraph."""
-        m = IMAGE_PATTERN.match(text.strip())
+        """Route content: image, styled list item, sub-label, metadata line,
+        otherwise a normal paragraph."""
+        stripped = text.strip()
+        m = IMAGE_PATTERN.match(stripped)
         if m:
             caption = m.group(1)
             img_path = m.group(2)
             size_hint = m.group(3) or 'full'
             self._draw_image(caption, img_path, size_hint)
+            return
+        tpl = getattr(self, 'tpl', {})
+        if tpl.get('list_size') and (stripped.startswith('- ') or stripped.startswith('* ')
+                                     or stripped.startswith('\u2022 ')):
+            self._draw_list_item(stripped)
+            return
+        if tpl.get('sublabel_size') and re.fullmatch(r'\*{1,2}[^*]{1,40}\*{1,2}', stripped):
+            self._draw_sublabel(stripped)
+            return
+        meta = re.match(r'^\*\*([^*]{1,32}):\*\*\s*(.*)
+    def render_table(self, headers, rows):
+        """Render a markdown table as a formatted grid on the canvas.
+        Handles page breaks within the table and repeats the header row
+        on continuation pages so columns stay labelled."""
+        if not headers:
+            return
+        HEADER_BG = HexColor('#2C3E50')
+        HEADER_TEXT = HexColor('#FFFFFF')
+        ROW_EVEN_BG = HexColor('#F8F9FA')
+        ROW_ODD_BG = HexColor('#FFFFFF')
+        GRID_COLOR = HexColor('#DEE2E6')
+        HEADER_BORDER = HexColor('#1A252F')
+        TBL_FONT = 'Gar'
+        TBL_FONT_BOLD = 'GarB'
+        TBL_SZ = 9
+        TBL_LD = 12
+        PAD = 5
+        MIN_COL_W = 36
+
+        def clean_cell(text):
+            text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+            text = re.sub(r'\*([^*]+)\*', r'\1', text)
+            text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+            return text.strip()
+
+        num_cols = len(headers)
+        norm_headers = [clean_cell(h) for h in headers]
+        norm_rows = []
+        for row in rows:
+            cells = [clean_cell(c) for c in row[:num_cols]]
+            while len(cells) < num_cols:
+                cells.append('')
+            norm_rows.append(cells)
+
+        tw = self._tw()
+        max_lengths = [0] * num_cols
+        for i, h in enumerate(norm_headers):
+            max_lengths[i] = max(max_lengths[i], len(h))
+        for row in norm_rows:
+            for i, cell in enumerate(row):
+                if i < num_cols:
+                    max_lengths[i] = max(max_lengths[i], len(cell))
+        total = sum(max_lengths) or 1
+        col_widths = [max((l / total) * tw, MIN_COL_W) for l in max_lengths]
+        scale = tw / sum(col_widths)
+        col_widths = [w * scale for w in col_widths]
+
+        def draw_row(cells, is_header, row_idx):
+            font = TBL_FONT_BOLD if is_header else TBL_FONT
+            text_color = HEADER_TEXT if is_header else C_BODY
+            wrapped = []
+            for ci, cell in enumerate(cells):
+                cw = col_widths[ci] - 2 * PAD
+                wl = self._wrap(cell, font, TBL_SZ, max(cw, 4))
+                wrapped.append(wl)
+            max_lines = max([len(wl) for wl in wrapped] or [1])
+            row_h = max_lines * TBL_LD + 2 * PAD
+
+            if self.current_y - row_h < MARGIN_BOTTOM:
+                self._finish_page()
+                self._new_page()
+                self.current_y = PAGE_H - MARGIN_TOP - 10
+                if not is_header:
+                    draw_row(norm_headers, True, 0)
+
+            lm = self._lm()
+            rect_top = self.current_y
+            rect_bottom = rect_top - row_h
+
+            if is_header:
+                bg = HEADER_BG
+            else:
+                bg = ROW_EVEN_BG if row_idx % 2 == 0 else ROW_ODD_BG
+            self.c.setFillColor(bg)
+            self.c.rect(lm, rect_bottom, tw, row_h, fill=1, stroke=0)
+
+            for ci, wl in enumerate(wrapped):
+                cx = lm + sum(col_widths[:ci]) + PAD
+                self.c.setFont(cjk_aware_font(cells[ci], font), TBL_SZ)
+                self.c.setFillColor(text_color)
+                baseline = rect_top - PAD - TBL_SZ * 0.75
+                for li, line in enumerate(wl):
+                    self.c.drawString(cx, baseline - li * TBL_LD, line)
+
+            self.c.setStrokeColor(GRID_COLOR)
+            self.c.setLineWidth(0.5)
+            self.c.line(lm, rect_top, lm + tw, rect_top)
+            self.c.line(lm, rect_bottom, lm + tw, rect_bottom)
+            x = lm
+            for ci in range(num_cols + 1):
+                self.c.line(x, rect_top, x, rect_bottom)
+                if ci < num_cols:
+                    x += col_widths[ci]
+
+            if is_header:
+                self.c.setStrokeColor(HEADER_BORDER)
+                self.c.setLineWidth(1.5)
+                self.c.line(lm, rect_bottom, lm + tw, rect_bottom)
+
+            self.current_y = rect_bottom
+
+        self._check_page(40)
+        self.current_y -= 12
+        draw_row(norm_headers, True, 0)
+        for ri, row in enumerate(norm_rows):
+            draw_row(row, False, ri + 1)
+        self.current_y -= 12
+    
+    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # PAGE TYPES
+    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    
+    def render_title(self):
+        self._new_page(suppress=True)
+        y = PAGE_H - 2.2*inch
+        self._ctxt(y, 'FROM THESE', 'GarB', 42, C_BODY); y -= 50
+        self._ctxt(y, 'STREETS', 'GarB', 42, C_BODY); y -= 40
+        self._divider(y, 'star'); y -= 30
+        self._ctxt(y, 'Salfordians who Changed the World', 'GarI', 14, C_BROWN); y -= 30
+        self._divider(y, 'star'); y -= 50
+        self._ctxt(y, 'David Oldham', 'GarI', 12, C_DARK); y -= 40
+        self._ctxt(y, 'published by:', 'Gar', 9, C_DARK); y -= 18
+        self._ctxt(y, 'D&H Publishing International', 'Gar', 11, C_BODY); y -= 35
+        self._ornament(y)
+        self._finish_page()
+    
+    def render_copyright(self, lines):
+        self._new_page(suppress=True)
+        y = PAGE_H - 2.0*inch
+        self._ctxt(y, 'FROM THESE STREETS', 'GarB', 14, C_BODY); y -= 20
+        self._ctxt(y, 'Salfordians who Changed the World', 'GarI', 11, C_BROWN); y -= 30
+        
+        # Join the copyright lines into paragraphs
+        paras = join_paragraphs(lines)
+        lm = self._lm()
+        tw = self._tw()
+        
+        for para in paras:
+            para = para.strip()
+            if not para:
+                continue
+            # Clean markdown artifacts
+            para = re.sub(r'\*([^*]+)\*', r'\1', para)
+            para = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', para)
+            
+            centered_markers = ['Paperback', 'www.']
+            is_centered = any(m in para for m in centered_markers)
+            
+            wrapped = self._wrap(para, 'Gar', 9.5, tw)
+            for wl in wrapped:
+                if y < MARGIN_BOTTOM + 30:
+                    break
+                self.c.setFont('Gar', 9.5)
+                self.c.setFillColor(C_BODY)
+                if is_centered:
+                    self.c.drawCentredString(self._lm() + self._tw() / 2, y, wl)
+                else:
+                    self.c.drawString(lm, y, wl)
+                y -= 13
+            y -= 5
+        
+        y -= 10
+        self._ornament(y)
+        self._finish_page()
+    
+    def render_dedication(self):
+        self._ensure_recto()
+        y = PAGE_H/2 + 30
+        self.c.setFont('GarI', 12)
+        self.c.setFillColor(C_DARK)
+        self.c.drawCentredString(self._lm() + self._tw() / 2, y, '"For anyone who\'s ever said:')
+        y -= 18
+        self.c.drawCentredString(self._lm() + self._tw() / 2, y, 'I\'m not from Manchester, I\'m from Salford."')
+        self._finish_page()
+    
+    def render_note(self, paras):
+        self._ensure_recto()
+        self.current_y = PAGE_H - MARGIN_TOP - 40
+        self._ctxt(self.current_y, 'A Note on Inclusion', 'GarB', 14, C_BODY)
+        self.current_y -= 28
+        for para in paras:
+            self._draw_para(para, align='left')
+        self._finish_page()
+    
+    def render_toc(self, entries):
+        self._ensure_recto()
+        self.current_y = PAGE_H - MARGIN_TOP - 30
+        self._ctxt(self.current_y, self.toc_title, 'GarB', 22, C_BODY)
+        self.current_y -= 40
+
+        lm = self._lm()
+        tw = self._tw()
+
+        # Reserve space for page number on the right (e.g. "210" max width)
+        pg_num_reserve = 28  # points â enough for a 3-digit page number
+        title_max_w = tw - pg_num_reserve - 12  # 12pt gap between title and leaders
+
+        for title, page, level in entries:
+            if level == 0:
+                font, sz = 'GarB', 11
+                indent = 0
+                line_h = 16
+                pre_gap = 6
+            else:
+                font, sz = 'Gar', 10
+                indent = 18
+                line_h = 14
+                pre_gap = 0
+
+            self.c.setFont(font, sz)
+
+            pg_str = str(page)
+            x_start = lm + indent
+            x_end = lm + tw
+
+            # Wrap title into lines that fit within title_max_w
+            max_title_w = title_max_w - indent
+            words = title.split()
+            wrapped_lines = []
+            current_line = ''
+            for word in words:
+                test = (current_line + ' ' + word).strip()
+                if self.c.stringWidth(test, font, sz) <= max_title_w:
+                    current_line = test
+                else:
+                    if current_line:
+                        wrapped_lines.append(current_line)
+                    current_line = word
+            if current_line:
+                wrapped_lines.append(current_line)
+            if not wrapped_lines:
+                wrapped_lines = [title]
+
+            total_h = len(wrapped_lines) * line_h + pre_gap + 2
+            self._check_page(total_h + 10)
+            # Re-set font after potential page break — showPage() resets canvas font to Helvetica
+            self.c.setFont(font, sz)
+
+            self.current_y -= pre_gap
+            self.c.setFillColor(C_BODY)
+
+            # Draw all lines except the last — setFont before EVERY drawString
+            for line in wrapped_lines[:-1]:
+                self.c.setFont(font, sz)
+                self.c.drawString(x_start, self.current_y, line)
+                self.current_y -= line_h
+
+            # Last line: draw title text, dot leaders, and page number on same baseline
+            last_line = wrapped_lines[-1]
+            self.c.setFont(font, sz)
+            self.c.setFillColor(C_BODY)
+            self.c.drawString(x_start, self.current_y, last_line)
+            self.c.setFont(font, sz)
+            self.c.drawRightString(x_end, self.current_y, pg_str)
+
+            # Dot leaders on last line
+            last_w = self.c.stringWidth(last_line, font, sz)
+            pg_w = self.c.stringWidth(pg_str, font, sz)
+            dot_s = x_start + last_w + 6
+            dot_e = x_end - pg_w - 6
+            if dot_e > dot_s + 10:
+                self.c.setFont('Gar', sz)
+                self.c.setFillColor(C_GREY)
+                dot_w = self.c.stringWidth('.', 'Gar', sz) + 1
+                x = dot_s
+                while x + dot_w <= dot_e:
+                    self.c.drawString(x, self.current_y, '.')
+                    x += dot_w
+
+            self.current_y -= line_h + 2
+
+        self.current_y -= 20
+        self._ornament(self.current_y)
+        self._finish_page()
+    
+    def render_chapter_opener(self, title, subtitle=''):
+        """Start chapter on recto page, return with current_y set."""
+        tpl = getattr(self, 'tpl', {})
+        self._ensure_recto()
+        self.is_front_matter = False
+        
+        self.chapter_count = getattr(self, 'chapter_count', 0) + 1
+        self.current_chapter_title = title
+        
+        offset = tpl.get('chapter_start_offset', 80)
+        self.current_y = PAGE_H - MARGIN_TOP - offset
+        
+        tw = self._tw()
+        cx = self._lm() + tw / 2
+        
+        # Chapter number
+        num_style = tpl.get('chapter_number_style', 'none')
+        num_text = format_chapter_number(self.chapter_count, num_style)
+        if num_text:
+            num_font = tpl.get('heading_font', 'GarB')
+            if num_style == 'large_sans_topleft':
+                num_sz = tpl.get('chapter_title_size', 48)
+                self.c.setFont(num_font, num_sz)
+                self.c.setFillColor(C_BODY)
+                self.c.drawString(self._lm(), self.current_y, num_text)
+                self.current_y -= num_sz + 16
+            elif num_style == 'smallcaps_spaced':
+                self._ctxt(self.current_y, num_text, num_font, 11, C_BROWN)
+                self.current_y -= 20
+            elif num_style == 'italic_centered':
+                self._ctxt(self.current_y, num_text, 'GarI', 16, C_BROWN)
+                self.current_y -= 24
+            elif num_style == 'sans_medium':
+                self.c.setFont('SansB', 11)
+                self.c.setFillColor(C_MID)
+                self.c.drawString(self._lm(), self.current_y, num_text)
+                self.current_y -= 22
+            elif num_style == 'large_centered':
+                self._ctxt(self.current_y, num_text, 'GarB', 26, C_BROWN)
+                self.current_y -= 34
+            elif num_style == 'centered_caps':
+                self._ctxt(self.current_y, num_text, 'MonoB', 14, C_BODY)
+                self.current_y -= 26
+        
+        # Chapter title
+        title_pos = tpl.get('chapter_title_position', 'centered')
+        title_font = tpl.get('chapter_title_font', 'GarB')
+        title_sz = tpl.get('chapter_title_size', CH_TITLE_SZ)
+        
+        if title_pos != 'none' and title:
+            if title_pos == 'centered_caps_spaced':
+                title_text = ' '.join(title.upper())
+            else:
+                title_text = title
+            
+            title_w = self.c.stringWidth(title_text, title_font, title_sz)
+            
+            if title_w > tw:
+                words = title_text.split()
+                mid = len(words) // 2
+                l1 = ' '.join(words[:mid])
+                l2 = ' '.join(words[mid:])
+                if title_pos in ('left', 'left_below'):
+                    for tl in self._wrap(title_text, title_font, title_sz, tw):
+                        self.c.setFont(title_font, title_sz)
+                        self.c.setFillColor(C_BODY)
+                        self.c.drawString(self._lm(), self.current_y, tl)
+                        self.current_y -= title_sz + 4
+                    self.current_y -= 4
+                else:
+                    self.current_y = self._ctxt_wrapped(self.current_y, l1, title_font, title_sz, C_BODY)
+                    self.current_y -= 8
+                    self.current_y = self._ctxt_wrapped(self.current_y, l2, title_font, title_sz, C_BODY)
+                    self.current_y -= 8
+            else:
+                if title_pos in ('left', 'left_below'):
+                    self.c.setFont(title_font, title_sz)
+                    self.c.setFillColor(C_BODY)
+                    self.c.drawString(self._lm(), self.current_y, title_text)
+                    self.current_y -= title_sz + 12
+                else:
+                    self._ctxt(self.current_y, title_text, title_font, title_sz, C_BODY)
+                    self.current_y -= 25
+        
+        # Subtitle
+        if subtitle and title_pos != 'none':
+            sub_w = self.c.stringWidth(subtitle, 'GarI', CH_SUB_SZ)
+            if sub_w > tw:
+                sub_lines = self._wrap(subtitle, 'GarI', CH_SUB_SZ, tw)
+                for sl in sub_lines:
+                    self.current_y = self._ctxt_wrapped(self.current_y, sl, 'GarI', CH_SUB_SZ, C_BROWN)
+                    self.current_y -= 18
+                self.current_y -= 12
+            else:
+                self.current_y = self._ctxt_wrapped(self.current_y, subtitle, 'GarI', CH_SUB_SZ, C_BROWN)
+                self.current_y -= 30
         else:
-            self._draw_para(text)
+            self.current_y -= 10
+        
+        # Ornament below title
+        ornament_style = tpl.get('ornament_below_title', 'rule')
+        if ornament_style and ornament_style != 'none':
+            draw_ornament(self.c, self.current_y, cx, ornament_style, C_BROWN)
+            self.current_y -= 30
+        
+        # Drop cap flag for first paragraph
+        self._drop_cap_style = tpl.get('drop_cap', 'none')
+    
+    def render_chapter_end(self):
+        self._check_page(50)
+        self.current_y -= 15
+        tpl = getattr(self, 'tpl', {})
+        ornament = tpl.get('chapter_end_ornament', getattr(self, 'chapter_end_ornament', 'fleuron'))
+        if ornament == 'none' or not ornament:
+            pass
+        elif ornament == 'divider':
+            self._divider(self.current_y)
+        else:
+            cx = self._lm() + self._tw() / 2
+            draw_ornament(self.c, self.current_y, cx, ornament, C_BROWN)
+        self._finish_page()
+
+    def render_profile(self, name, tagline, body, is_first=False):
+        if not is_first:
+            self._check_page(80)
+            self._dot_sep(self.current_y)
+            self.current_y -= 22
+
+        self._check_page(60)
+
+        # Name
+        lm = self._lm()
+        self.c.setFont('GarB', PROF_NAME_SZ)
+        self.c.setFillColor(C_BODY)
+        self.c.drawString(lm, self.current_y, name)
+        self.current_y -= 18
+
+        # Tagline
+        if tagline:
+            tag = tagline.replace('--', '\u2013')
+            self.c.setFont('GarI', PROF_TAG_SZ)
+            self.c.setFillColor(C_MID)
+            self.c.drawString(lm, self.current_y, tag)
+            self.current_y -= 20
+        else:
+            self.current_y -= 6
+
+        # Body
+        for para in body:
+            self._draw_content(para)
+
+    def render_also_available(self):
+        """Also available page â nod to Not Manchester."""
+        self._ensure_recto()
+        y = PAGE_H / 2 + 80
+        
+        self._ctxt(y, 'Also available from', 'Gar', 10, C_DARK)
+        y -= 16
+        self._ctxt(y, 'D&H Publishing International', 'GarI', 11, C_DARK)
+        y -= 35
+        
+        # Decorative rule above title
+        cx = self._lm() + self._tw() / 2
+        self.c.setStrokeColor(C_BROWN)
+        self.c.setLineWidth(0.5)
+        self.c.line(cx - 60, y, cx + 60, y)
+        y -= 30
+        
+        self._ctxt(y, 'NOT MANCHESTER', 'GarB', 20, C_BODY)
+        y -= 26
+        self._ctxt(y, 'The Proud Story of Salford', 'GarI', 13, C_BROWN)
+        y -= 30
+        
+        # Rule below
+        self.c.setStrokeColor(C_BROWN)
+        self.c.setLineWidth(0.5)
+        self.c.line(cx - 60, y, cx + 60, y)
+        y -= 28
+        
+        self._ctxt(y, 'David Oldham', 'GarI', 11, C_DARK)
+        y -= 35
+        
+        self._ctxt(y, 'www.dandhpublishing.com', 'Gar', 9.5, C_GREY)
+        y -= 30
+        
+        self._ornament(y)
+        self._finish_page()
+    
+    def render_back_page(self):
+        self._ensure_recto()
+        y = PAGE_H/2 + 20
+        self._ctxt(y, 'www.dandhpublishing.com', 'GarB', 13, C_BODY); y -= 22
+        self._ctxt(y, 'Salfordians who Changed the World', 'GarI', 11, C_DARK); y -= 30
+        self._divider(y, 'star'); y -= 25
+        self._ctxt(y, 'D&H Publishing International', 'Gar', 10, C_DARK); y -= 18
+        self.c.setFont('Gar', 8.5)
+        self.c.setFillColor(C_GREY)
+        self.c.drawCentredString(self._lm() + self._tw() / 2, y, '\u00a9 2026 David Oldham. All rights reserved.')
+        self._finish_page()
+
+
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# TWO-PASS BUILDER
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+
+class BookBuilder:
+    def __init__(self, md_path, output_path, language='en_GB'):
+        self.md_path = md_path
+        self.output_path = output_path
+        self.language = language
+        self.toc_title = get_toc_title(language)
+        self.blocks = parse_manuscript(md_path)
+        for _blk in self.blocks:
+            if 'body' in _blk:
+                for _item in _blk['body']:
+                    if _item.get('type') == 'para':
+                        _item['text'] = convert_quotation_marks(_item['text'], language)
+            elif _blk.get('type') == 'para':
+                _blk['text'] = convert_quotation_marks(_blk['text'], language)
+        # Image base directory: same folder as the manuscript
+        self.image_base_dir = os.path.dirname(os.path.abspath(md_path))
+    
+    def _render(self, path, toc_entries=None):
+        r = BookRenderer(path)
+        r.image_base_dir = self.image_base_dir
+        r.header_text = 'FROM THESE STREETS \u2013 Salfordians who Changed the World'
+        r.toc_title = self.toc_title
+        first_in_ch = True
+        
+        for i, blk in enumerate(self.blocks):
+            t = blk['type']
+            
+            if t == 'title_page':
+                r.render_title()
+            elif t == 'copyright_page':
+                # blank verso
+                r._new_page(suppress=True)
+                r._finish_page()
+                r.render_copyright(blk['lines'])
+            elif t == 'dedication_page':
+                r.render_dedication()
+            elif t == 'note_on_inclusion':
+                r.render_note(blk['paras'])
+            elif t == 'toc':
+                if toc_entries:
+                    r.render_toc(toc_entries)
+                else:
+                    # Placeholder pages
+                    r._ensure_recto()
+                    r._ctxt(PAGE_H - MARGIN_TOP - 30, r.toc_title, 'GarB', 22, C_BODY)
+                    r._finish_page()
+                    r._new_page(suppress=True)
+                    r._finish_page()
+            elif t in ('chapter', 'afterword'):
+                r.toc_entries.append((blk['title'], r.page_num + 1, 0))
+                r.render_chapter_opener(blk['title'], blk.get('subtitle', ''))
+                first_in_ch = True
+                for para in blk.get('intro', []):
+                    r._draw_content(para)
+                if t == 'afterword':
+                    r.render_chapter_end()
+            elif t == 'profile':
+                r.toc_entries.append((blk['name'], r.page_num, 1))
+                r.render_profile(blk['name'], blk.get('tagline',''),
+                                blk.get('body',[]), is_first=first_in_ch)
+                first_in_ch = False
+                
+                # Check if next block starts a new chapter or afterword
+                if i+1 < len(self.blocks):
+                    nt = self.blocks[i+1]['type']
+                    if nt in ('chapter', 'afterword'):
+                        r.render_chapter_end()
+                elif i == len(self.blocks) - 1:
+                    r.render_chapter_end()
+        
+        r.render_also_available()
+        r.render_back_page()
+        r.c.save()
+        self._last_image_log = r.image_log
+        return r.toc_entries
+    
+    def build(self):
+        print("Pass 1: Collecting page numbers...")
+        tmp = self.output_path.replace('.pdf', '_p1.pdf')
+        toc = self._render(tmp)
+        print(f"  {len(toc)} TOC entries, last page ~{toc[-1][1] if toc else '?'}")
+        
+        print("Pass 2: Final render with TOC...")
+        self._render(self.output_path, toc)
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        
+        # Set TrimBox
+        self._set_trimbox()
+        
+        # Print image log
+        if self._last_image_log:
+            print(f"\nIMAGES")
+            print(f"------")
+            placed = 0
+            warnings = 0
+            errors = 0
+            for fname, page, hint, dpi, status in self._last_image_log:
+                if status == 'OK':
+                    print(f"  {fname:40s} placed p.{page} ({hint} width, {dpi} DPI) â")
+                    placed += 1
+                elif status == 'LOW RES':
+                    print(f"  {fname:40s} placed p.{page} ({hint} width, {dpi} DPI) â  LOW RES")
+                    placed += 1
+                    warnings += 1
+                else:
+                    print(f"  {fname:40s} {status} â")
+                    errors += 1
+            print(f"\n  Total images: {len(self._last_image_log)}")
+            print(f"  Placed: {placed}")
+            if warnings:
+                print(f"  Warnings: {warnings} (low resolution)")
+            if errors:
+                print(f"  Errors: {errors}")
+        
+        print(f"\nDone: {self.output_path}")
+    
+    def _set_trimbox(self):
+        from pypdf import PdfReader, PdfWriter
+        from pypdf.generic import ArrayObject, FloatObject, NameObject
+        
+        reader = PdfReader(self.output_path)
+        # Use clone_from to preserve font embedding from the original ReportLab PDF.
+        writer = PdfWriter(clone_from=reader)
+        for page in writer.pages:
+            page[NameObject('/TrimBox')] = ArrayObject([
+                FloatObject(0), FloatObject(0),
+                FloatObject(PAGE_W), FloatObject(PAGE_H),
+            ])
+        writer.add_metadata({
+            '/Title': getattr(self, 'title', 'Untitled'),
+            '/Author': getattr(self, 'author', 'Unknown'),
+            '/Creator': 'Layout Perfect Typesetting Engine',
+            '/Producer': 'ReportLab + pypdf',
+        })
+        with open(self.output_path, 'wb') as f:
+            writer.write(f)
+
+
+if __name__ == '__main__':
+    builder = BookBuilder(
+        '/mnt/user-data/uploads/From_These_Streets_-_Revised_Manuscript.md',
+        '/mnt/user-data/outputs/From_These_Streets_PRINT.pdf'
+    )
+    builder.build()
+, stripped)
+        if meta and tpl.get('meta_size'):
+            self._draw_meta_line(meta.group(1), meta.group(2))
+            return
+        self._draw_para(text)
 
     def render_table(self, headers, rows):
         """Render a markdown table as a formatted grid on the canvas.
