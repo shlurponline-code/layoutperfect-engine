@@ -382,6 +382,7 @@ TEMPLATES = {
         'chapter_title_size': 16, 'chapter_title_font': 'SansB',
         'chapter_title_position': 'left',
         'chapter_number_style': 'none',
+        'chapter_subtitles': False,
         'drop_cap': 'none',
         'ornament_below_title': 'none',
         'ornament_above_title': 'hairline',
