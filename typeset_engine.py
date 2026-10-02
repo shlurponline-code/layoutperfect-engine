@@ -349,6 +349,24 @@ def join_paragraphs(lines):
             paragraphs.append(stripped)
             continue
         
+        # Ingredient / bullet lines - keep every item on its own line so a
+        # recipe list doesn't merge into one run-on paragraph.
+        if stripped.startswith('- ') or stripped.startswith('* ') or stripped.startswith('\u2022 '):
+            if current:
+                paragraphs.append(' '.join(current))
+                current = []
+            paragraphs.append(stripped)
+            continue
+
+        # Bold label lines (**Cut:** Beef cheek) - keep separate so a recipe's
+        # metadata block doesn't collapse into one paragraph.
+        if re.match(r'^\*\*[^*]{1,32}:\*\*', stripped):
+            if current:
+                paragraphs.append(' '.join(current))
+                current = []
+            paragraphs.append(stripped)
+            continue
+
         # Normal text â accumulate
         current.append(stripped)
     
@@ -700,10 +718,14 @@ def is_toc_placeholder_line(text):
     return t in _TOC_PLACEHOLDER_TEXTS
 
 
-def parse_manuscript_generic(filepath):
+def parse_manuscript_generic(filepath, use_subtitles=True):
     """Generic parser for novels, non-fiction, and any standard markdown manuscript.
     Handles: # Part, # Chapter, ## Subtitle, body text, scene breaks (*** ---),
-    and back matter (Author's Note, Acknowledgements, About, etc.)."""
+    and back matter (Author's Note, Acknowledgements, About, etc.).
+
+    use_subtitles=False keeps a ## line that follows a # heading as a
+    subheading instead of swallowing it as the chapter's subtitle (cookbook
+    sections are followed by a recipe title, not a subtitle)."""
     with open(filepath, 'r', encoding='utf-8') as f:
         raw_lines = f.read().split('\n')
     
@@ -725,8 +747,8 @@ def parse_manuscript_generic(filepath):
             body = []
             i += 1
             
-            # Check for ## subtitle
-            if i < len(paras) and paras[i].strip().startswith('## '):
+            # Check for ## subtitle (templates can opt out)
+            if use_subtitles and i < len(paras) and paras[i].strip().startswith('## '):
                 subtitle = paras[i].strip()[3:].strip()
                 i += 1
             
@@ -862,7 +884,9 @@ class GenericBookBuilder:
         self.verso_counter = 0
         self.tpl = TEMPLATES.get(template, TEMPLATES['narrative'])
         self.toc_title = get_toc_title(language)
-        self.blocks = parse_manuscript_generic(md_path)
+        # Cookbook-style templates treat ## as recipe titles, not subtitles.
+        self.blocks = parse_manuscript_generic(
+            md_path, use_subtitles=self.tpl.get('chapter_subtitles', True))
         for _blk in self.blocks:
             if 'body' in _blk:
                 for _item in _blk['body']:
@@ -1031,16 +1055,13 @@ class GenericBookBuilder:
                     if item['type'] == 'para':
                         r._draw_content(item['text'])
                     elif item['type'] == 'subheading':
-                        # Quality pass: Stranded heading check — need space
-                        # for heading + at least 2 body lines after it.
-                        r._check_page(80)
-                        r.current_y -= 16
-                        if item.get('level') == 1:
-                            r._ctxt(r.current_y, item['text'], 'GarB', 15, C_BODY)
-                        else:
-                            r._ctxt(r.current_y, item['text'], 'GarI', 14, C_BROWN)
-                        r.current_y -= 24
+                        # Sub-heading styling comes from the active template.
+                        r.render_subheading(item['text'], item.get('level', 1))
                     elif item['type'] == 'scene_break':
+                        _sb = r.tpl.get('scene_break', 'dots') if hasattr(r, 'tpl') else 'dots'
+                        # A template can suppress scene breaks entirely (cookbook).
+                        if _sb == 'none':
+                            continue
                         # Rules 3 & 4: Skip scene break if at top of page
                         # (nothing drawn yet on this page, or after a page break).
                         top_y = PAGE_H - MARGIN_TOP - 10
@@ -1056,7 +1077,6 @@ class GenericBookBuilder:
                             continue
                         r.current_y -= 14
                         cx = r._lm() + r._tw() / 2
-                        _sb = r.tpl.get('scene_break', 'dots') if hasattr(r, 'tpl') else 'dots'
                         draw_scene_break(r.c, r.current_y, cx, _sb, C_MID)
                         r.current_y -= 14
                     elif item['type'] == 'image':
@@ -1938,16 +1958,154 @@ class BookRenderer:
         
         self.current_y -= 2
     
+    def _tpl_color(self, key, default=C_BROWN):
+        """Resolve a template colour key (hex string) to a ReportLab colour."""
+        val = getattr(self, 'tpl', {}).get(key)
+        if isinstance(val, str) and val.startswith('#'):
+            try:
+                return HexColor(val)
+            except Exception:
+                return default
+        return default
+
+    def _draw_accent_rule(self, y, width=None, lw=0.6):
+        """Hairline rule drawn in the template's accent colour."""
+        tpl = getattr(self, 'tpl', {})
+        self.c.setStrokeColor(self._tpl_color('accent_color', C_BROWN))
+        self.c.setLineWidth(tpl.get('accent_rule_width', lw))
+        w = width if width is not None else self._tw()
+        self.c.line(self._lm(), y, self._lm() + w, y)
+
+    def render_subheading(self, text, level=1):
+        """Sub-heading inside a chapter. Styling is template-driven; the defaults
+        keep the classic centred serif treatment used by the older templates."""
+        tpl = getattr(self, 'tpl', {})
+        if level == 1:
+            font = tpl.get('subhead_font', 'GarB')
+            sz = tpl.get('subhead_size', 15)
+            align = tpl.get('subhead_align', 'center')
+            color = self._tpl_color('subhead_color', C_BODY)
+            rule = tpl.get('subhead_rule_above', 'none')
+            need = tpl.get('subhead_break_need', 80)
+            before = tpl.get('subhead_space_before', 16)
+            after = tpl.get('subhead_space_after', 4)
+        else:
+            font = tpl.get('subhead2_font', 'GarI')
+            sz = tpl.get('subhead2_size', 14)
+            align = tpl.get('subhead2_align', 'center')
+            color = self._tpl_color('subhead2_color', C_BROWN)
+            rule = 'none'
+            need = tpl.get('subhead2_break_need', 80)
+            before = tpl.get('subhead2_space_before', 16)
+            after = tpl.get('subhead2_space_after', 4)
+        plain = text.strip()
+        plain = re.sub(r'\*\*([^*]+)\*\*', r'\1', plain)
+        plain = re.sub(r'\*([^*]+)\*', r'\1', plain)
+        # Quality pass: keep a heading with at least a couple of lines after it.
+        self._check_page(need)
+        self.current_y -= before
+        if rule and rule != 'none':
+            self._draw_accent_rule(self.current_y)
+            self.current_y -= tpl.get('rule_gap', 10)
+        font = cjk_aware_font(plain, font)
+        lines = self._wrap(plain, font, sz, self._tw())
+        for line in lines:
+            self._check_page(sz * 1.4)
+            self.c.setFont(font, sz)
+            self.c.setFillColor(color)
+            if align == 'left':
+                self.c.drawString(self._lm(), self.current_y, line)
+            else:
+                self.c.drawCentredString(self._lm() + self._tw() / 2, self.current_y, line)
+            self.current_y -= sz * 1.3
+        self.current_y -= after
+
+    def _draw_list_item(self, text):
+        """Ingredient / bullet item, styled from the active template."""
+        tpl = getattr(self, 'tpl', {})
+        sz = tpl.get('list_size', tpl.get('body_size', BODY_SZ))
+        leading = tpl.get('list_leading', sz * 1.4)
+        indent = tpl.get('list_indent', 0)
+        marker = tpl.get('list_marker', '')
+        font = cjk_aware_font(text, tpl.get('list_font', tpl.get('body_font', 'Gar')))
+        body = re.sub(r'^[-*\u2022]\s*', '', text.strip())
+        body = re.sub(r'\*\*([^*]+)\*\*', r'\1', body)
+        body = re.sub(r'\*([^*]+)\*', r'\1', body)
+        self.c.setFont(font, sz)
+        mw = self.c.stringWidth(marker + ' ', font, sz) if marker else 0
+        lines = self._wrap(body, font, sz, self._tw() - indent - mw) or ['']
+        for k, line in enumerate(lines):
+            self._check_page(leading)
+            if k == 0 and marker:
+                self.c.setFont(font, sz)
+                self.c.setFillColor(self._tpl_color('accent_color', C_BROWN))
+                self.c.drawString(self._lm() + indent, self.current_y, marker)
+            self.c.setFont(font, sz)
+            self.c.setFillColor(C_BODY)
+            self.c.drawString(self._lm() + indent + mw, self.current_y, line)
+            self.current_y -= leading
+        self.current_y -= tpl.get('list_space_after', 1)
+
+    def _draw_sublabel(self, text):
+        """Sub-label such as Ingredients / Method / Butcher's Tip."""
+        tpl = getattr(self, 'tpl', {})
+        label = text.strip().strip('*').strip()
+        font = cjk_aware_font(label, tpl.get('sublabel_font', 'SansB'))
+        sz = tpl.get('sublabel_size', 10)
+        self._check_page(tpl.get('sublabel_break_need', 30))
+        self.current_y -= tpl.get('sublabel_space_before', 8)
+        self.c.setFont(font, sz)
+        self.c.setFillColor(self._tpl_color('sublabel_color', self._tpl_color('accent_color', C_BROWN)))
+        self.c.drawString(self._lm(), self.current_y, label)
+        self.current_y -= sz + tpl.get('sublabel_space_after', 5)
+
+    def _draw_meta_line(self, label, value):
+        """Compact metadata line such as **Cut:** Beef cheek (joue de boeuf)."""
+        tpl = getattr(self, 'tpl', {})
+        sz = tpl.get('meta_size', 9)
+        leading = tpl.get('meta_leading', sz * 1.3)
+        font = cjk_aware_font(value, tpl.get('meta_font', 'Sans'))
+        bold = tpl.get('meta_label_font', 'SansB')
+        self._check_page(leading)
+        self.c.setFont(bold, sz)
+        lbl = label.strip().rstrip(':')
+        lw_ = self.c.stringWidth(lbl + ': ', bold, sz)
+        self.c.setFillColor(self._tpl_color('meta_label_color', self._tpl_color('accent_color', C_BROWN)))
+        self.c.drawString(self._lm(), self.current_y, lbl + ':')
+        vals = self._wrap(value.strip(), font, sz, self._tw() - lw_) or ['']
+        for k, v in enumerate(vals):
+            if k:
+                self._check_page(leading)
+            self.c.setFont(font, sz)
+            self.c.setFillColor(C_BODY)
+            self.c.drawString(self._lm() + lw_, self.current_y, v)
+            self.current_y -= leading
+        self.current_y -= tpl.get('meta_space_after', 1)
+
     def _draw_content(self, text):
-        """Route content: render as image if it's an image reference, otherwise as paragraph."""
-        m = IMAGE_PATTERN.match(text.strip())
+        """Route content: image, styled list item, sub-label, metadata line,
+        otherwise a normal paragraph."""
+        stripped = text.strip()
+        m = IMAGE_PATTERN.match(stripped)
         if m:
             caption = m.group(1)
             img_path = m.group(2)
             size_hint = m.group(3) or 'full'
             self._draw_image(caption, img_path, size_hint)
-        else:
-            self._draw_para(text)
+            return
+        tpl = getattr(self, 'tpl', {})
+        if tpl.get('list_size') and (stripped.startswith('- ') or stripped.startswith('* ')
+                                     or stripped.startswith('\u2022 ')):
+            self._draw_list_item(stripped)
+            return
+        if tpl.get('sublabel_size') and re.fullmatch(r'\*{1,2}[^*]{1,40}\*{1,2}', stripped):
+            self._draw_sublabel(stripped)
+            return
+        meta = re.match(r'^\*\*([^*]{1,32}):\*\*\s*(.*)$', stripped)
+        if meta and tpl.get('meta_size'):
+            self._draw_meta_line(meta.group(1), meta.group(2))
+            return
+        self._draw_para(text)
 
     def render_table(self, headers, rows):
         """Render a markdown table as a formatted grid on the canvas.
@@ -2235,6 +2393,12 @@ class BookRenderer:
         
         offset = tpl.get('chapter_start_offset', 80)
         self.current_y = PAGE_H - MARGIN_TOP - offset
+
+        # Optional hairline rule above the title (cookbook recipe openers).
+        above = tpl.get('ornament_above_title', 'none')
+        if above and above != 'none':
+            self._draw_accent_rule(self.current_y)
+            self.current_y -= tpl.get('ornament_above_gap', 12)
         
         tw = self._tw()
         cx = self._lm() + tw / 2
@@ -2272,6 +2436,7 @@ class BookRenderer:
         title_pos = tpl.get('chapter_title_position', 'centered')
         title_font = tpl.get('chapter_title_font', 'GarB')
         title_sz = tpl.get('chapter_title_size', CH_TITLE_SZ)
+        title_color = self._tpl_color('chapter_title_color', C_BODY)
         
         if title_pos != 'none' and title:
             if title_pos == 'centered_caps_spaced':
@@ -2289,7 +2454,7 @@ class BookRenderer:
                 if title_pos in ('left', 'left_below'):
                     for tl in self._wrap(title_text, title_font, title_sz, tw):
                         self.c.setFont(title_font, title_sz)
-                        self.c.setFillColor(C_BODY)
+                        self.c.setFillColor(title_color)
                         self.c.drawString(self._lm(), self.current_y, tl)
                         self.current_y -= title_sz + 4
                     self.current_y -= 4
@@ -2301,25 +2466,35 @@ class BookRenderer:
             else:
                 if title_pos in ('left', 'left_below'):
                     self.c.setFont(title_font, title_sz)
-                    self.c.setFillColor(C_BODY)
+                    self.c.setFillColor(title_color)
                     self.c.drawString(self._lm(), self.current_y, title_text)
                     self.current_y -= title_sz + 12
                 else:
-                    self._ctxt(self.current_y, title_text, title_font, title_sz, C_BODY)
+                    self._ctxt(self.current_y, title_text, title_font, title_sz, title_color)
                     self.current_y -= 25
         
-        # Subtitle
+        # Subtitle (template-driven font, size, colour and alignment)
+        sub_font = tpl.get('subtitle_font', 'GarI')
+        sub_sz = tpl.get('subtitle_size', CH_SUB_SZ)
+        sub_color = self._tpl_color('subtitle_color', C_BROWN)
         if subtitle and title_pos != 'none':
-            sub_w = self.c.stringWidth(subtitle, 'GarI', CH_SUB_SZ)
-            if sub_w > tw:
-                sub_lines = self._wrap(subtitle, 'GarI', CH_SUB_SZ, tw)
-                for sl in sub_lines:
-                    self.current_y = self._ctxt_wrapped(self.current_y, sl, 'GarI', CH_SUB_SZ, C_BROWN)
-                    self.current_y -= 18
-                self.current_y -= 12
+            if tpl.get('subtitle_align', 'center') == 'left':
+                for sl in self._wrap(subtitle, sub_font, sub_sz, tw):
+                    self.c.setFont(sub_font, sub_sz)
+                    self.c.setFillColor(sub_color)
+                    self.c.drawString(self._lm(), self.current_y, sl)
+                    self.current_y -= sub_sz + 4
+                self.current_y -= tpl.get('subtitle_gap_after', 12)
             else:
-                self.current_y = self._ctxt_wrapped(self.current_y, subtitle, 'GarI', CH_SUB_SZ, C_BROWN)
-                self.current_y -= 30
+                sub_w = self.c.stringWidth(subtitle, sub_font, sub_sz)
+                if sub_w > tw:
+                    for sl in self._wrap(subtitle, sub_font, sub_sz, tw):
+                        self.current_y = self._ctxt_wrapped(self.current_y, sl, sub_font, sub_sz, sub_color)
+                        self.current_y -= 18
+                    self.current_y -= 12
+                else:
+                    self.current_y = self._ctxt_wrapped(self.current_y, subtitle, sub_font, sub_sz, sub_color)
+                    self.current_y -= 30
         else:
             self.current_y -= 10
         
