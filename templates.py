@@ -376,6 +376,48 @@ TEMPLATES = {
         'text_alignment': 'left',
         'margin_multiplier': 1.0,
     },
+    'cookbook': {
+        'body_font': 'Sans', 'heading_font': 'SansB',
+        'body_size': 10, 'leading': 14,
+        'chapter_title_size': 16, 'chapter_title_font': 'SansB',
+        'chapter_title_position': 'left',
+        'chapter_number_style': 'none',
+        'drop_cap': 'none',
+        'ornament_below_title': 'none',
+        'ornament_above_title': 'hairline',
+        'ornament_above_gap': 12,
+        'header_style': 'centered',
+        'header_font': 'Sans',
+        'folio_position': 'centered',
+        'folio_font': 'Sans',
+        'header_rule': True,
+        'first_line_indent': 0,
+        'paragraph_spacing': 4,
+        'scene_break': 'none',
+        'chapter_end_ornament': 'none',
+        'chapter_start_offset': 30,
+        'text_alignment': 'left',
+        'margin_multiplier': 0.78,
+        'accent_color': '#7A6B5D',
+        # Recipe titles: left-aligned bold sans, hairline rule above.
+        'subhead_font': 'SansB', 'subhead_size': 16, 'subhead_align': 'left',
+        'subhead_rule_above': 'hairline', 'rule_gap': 7,
+        'subhead_break_need': 46, 'subhead_space_before': 16, 'subhead_space_after': 6,
+        # Translation line under the recipe title.
+        'subhead2_font': 'SansI', 'subhead2_size': 10, 'subhead2_align': 'left',
+        'subhead2_color': '#7A6B5D',
+        'subhead2_break_need': 24, 'subhead2_space_before': 2, 'subhead2_space_after': 4,
+        'subtitle_font': 'SansI', 'subtitle_size': 10, 'subtitle_color': '#7A6B5D',
+        'subtitle_align': 'left', 'subtitle_gap_after': 12,
+        # Sub-labels: Ingredients, Method, Butcher's Tip.
+        'sublabel_font': 'SansB', 'sublabel_size': 10,
+        'sublabel_break_need': 22, 'sublabel_space_before': 8, 'sublabel_space_after': 5,
+        # Ingredient lists: compact, indented, dashed.
+        'list_font': 'Sans', 'list_size': 9, 'list_leading': 12,
+        'list_indent': 12, 'list_marker': '\u2013',
+        # Metadata block: **Cut:** Beef cheek (joue de boeuf).
+        'meta_font': 'Sans', 'meta_label_font': 'SansB', 'meta_size': 9, 'meta_leading': 11.5,
+    },
 }
 
 # ── Ornament Drawing ─────────────────────────────────────────────────
