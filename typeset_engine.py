@@ -735,8 +735,12 @@ def parse_manuscript_generic(filepath):
                 pp = paras[i].strip()
                 if pp.startswith('# '):
                     break
+                if pp.startswith('## '):
+                    body.append({'type': 'subheading', 'text': pp[3:].strip(), 'level': 1})
+                    i += 1
+                    continue
                 if pp.startswith('### '):
-                    body.append({'type': 'subheading', 'text': pp[4:].strip()})
+                    body.append({'type': 'subheading', 'text': pp[4:].strip(), 'level': 2})
                     i += 1
                     continue
                 if pp in ('***', '* * *') or (len(pp) >= 3 and all(c == '-' for c in pp)):
@@ -795,7 +799,7 @@ def parse_manuscript_generic(filepath):
                 if pp.startswith('# ') or pp.startswith('## '):
                     break
                 if pp.startswith('### '):
-                    body.append({'type': 'subheading', 'text': pp[4:].strip()})
+                    body.append({'type': 'subheading', 'text': pp[4:].strip(), 'level': 2})
                     i += 1
                     continue
                 if pp in ('***', '* * *') or (len(pp) >= 3 and all(c == '-' for c in pp)):
@@ -1031,6 +1035,9 @@ class GenericBookBuilder:
                         # for heading + at least 2 body lines after it.
                         r._check_page(80)
                         r.current_y -= 16
+                        if item.get('level') == 1:
+                        r._ctxt(r.current_y, item['text'], 'GarB', 15, C_BODY)
+                    else:
                         r._ctxt(r.current_y, item['text'], 'GarI', 14, C_BROWN)
                         r.current_y -= 24
                     elif item['type'] == 'scene_break':
@@ -1545,6 +1552,8 @@ class BookRenderer:
         
         text = re.sub(r'__([^_]+)__', r'\1', text)
         text = re.sub(r'`([^`]+)`', r'\1', text)
+        # Safety net: never print leftover markdown heading markers in body text
+        text = re.sub(r'^\s*#{1,6}\s+', '', text)
         
         # Apply hyphenation for justified text
         if align == 'justified' and HYPHENATE:
