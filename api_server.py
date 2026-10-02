@@ -348,6 +348,19 @@ def typeset(req: TypesetRequest):
         engine.MARGIN_OUTSIDE = max(req.margin_outside_cm / 2.54, 0.25) * 72
         engine.MARGIN_TOP = max(req.margin_top_cm / 2.54, 0.25) * 72
         engine.MARGIN_BOTTOM = max(req.margin_bottom_cm / 2.54, 0.25) * 72
+
+        # Templates can trim margins further (cookbook runs tighter to make the
+        # most of a small trim size). KDP minimums stay enforced.
+        try:
+            from templates import TEMPLATES as _TPL
+            _mm = float(_TPL.get(req.template, {}).get('margin_multiplier', 1.0) or 1.0)
+        except Exception:
+            _mm = 1.0
+        if _mm != 1.0:
+            engine.MARGIN_OUTSIDE = max(engine.MARGIN_OUTSIDE * _mm, 0.25 * 72)
+            engine.MARGIN_TOP = max(engine.MARGIN_TOP * _mm, 0.25 * 72)
+            engine.MARGIN_BOTTOM = max(engine.MARGIN_BOTTOM * _mm, 0.25 * 72)
+            print(f'Margin trim: {req.template} template scales margins by {_mm}')
         engine.BODY_SZ = req.body_size_pt
         engine.BODY_LD = req.leading_pt
         engine.CH_TITLE_SZ = req.chapter_title_size_pt
