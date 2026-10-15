@@ -87,6 +87,10 @@ class TypesetRequest(BaseModel):
     verso_image_captions: list = Field(default_factory=list)
     verso_image_size: str = Field(default="medium")
     verso_image_opacity: float = Field(default=100)
+    # Interior feature overrides: drop caps, chapter opener ornaments, scene
+    # breaks, running headers/folios, pull quotes and callouts. Keys are the
+    # template-registry keys; omitted keys keep the template's own defaults.
+    interior: dict = Field(default_factory=dict)
 
 
 class TypesetResponse(BaseModel):
@@ -397,6 +401,7 @@ def typeset(req: TypesetRequest):
                 chapter_end_ornament=req.chapter_end_ornament,
                 language=req.language,
                 template=req.template,
+                interior_overrides=req.interior,
             )
         
         block_types = ",".join(b.get('type','?') for b in builder.blocks)
