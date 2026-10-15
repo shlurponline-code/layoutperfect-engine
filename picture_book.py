@@ -44,6 +44,12 @@ try:
 except AttributeError:  # Pillow < 9.1
     RESAMPLE = Image.LANCZOS
 
+try:
+    # Image.rotate only accepts NEAREST / BILINEAR / BICUBIC.
+    ROTATE_RESAMPLE = Image.Resampling.BICUBIC
+except AttributeError:
+    ROTATE_RESAMPLE = Image.BICUBIC
+
 FLIP_LR = getattr(Image, "FLIP_LEFT_RIGHT", 0)
 FLIP_TB = getattr(Image, "FLIP_TOP_BOTTOM", 1)
 
@@ -462,7 +468,11 @@ def check_image(image, size_bytes, image_format, input_mode, trim_w, trim_h, ind
     def near(a, b):
         return abs(a - b) <= max(0.02, b * 0.01)
 
-    if near(width_in, expected_w) and near(height_in, expected_h):
+    # Bleed may be supplied on the outer edge only, or symmetrically on both.
+    symmetric_bleed = near(width_in, (trim_w * pages_wide) + (2 * BLEED_IN)) and near(
+        height_in, trim_h + (2 * BLEED_IN)
+    )
+    if (near(width_in, expected_w) and near(height_in, expected_h)) or symmetric_bleed:
         checks.append(
             {"name": "dimensions", "status": "pass", "message": "Image {}: matches trim + bleed".format(index)}
         )
@@ -692,7 +702,7 @@ def _watermark(image, text):
         font=font,
         fill=(190, 30, 40, 110),
     )
-    layer = layer.rotate(45, expand=False, resample=RESAMPLE)
+    layer = layer.rotate(45, expand=False, resample=ROTATE_RESAMPLE)
     overlay = Image.alpha_composite(overlay, layer)
     return Image.alpha_composite(image.convert("RGBA"), overlay).convert("RGB")
 
