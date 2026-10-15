@@ -468,13 +468,27 @@ def check_image(image, size_bytes, image_format, input_mode, trim_w, trim_h, ind
     def near(a, b):
         return abs(a - b) <= max(0.02, b * 0.01)
 
-    # Bleed may be supplied on the outer edge only, or symmetrically on both.
+    # Bleed may arrive on the outer edge only, symmetrically on both, or - for
+    # spreads - not on the outer edges at all, because the split creates it.
     symmetric_bleed = near(width_in, (trim_w * pages_wide) + (2 * BLEED_IN)) and near(
         height_in, trim_h + (2 * BLEED_IN)
+    )
+    spread_without_outer_bleed = (
+        input_mode == "spread"
+        and near(width_in, trim_w * pages_wide)
+        and near(height_in, trim_h + (2 * BLEED_IN))
     )
     if (near(width_in, expected_w) and near(height_in, expected_h)) or symmetric_bleed:
         checks.append(
             {"name": "dimensions", "status": "pass", "message": "Image {}: matches trim + bleed".format(index)}
+        )
+    elif spread_without_outer_bleed:
+        checks.append(
+            {
+                "name": "dimensions",
+                "status": "pass",
+                "message": "Image {}: spread at trim width with top/bottom bleed - the outer bleed is generated when the spread is split".format(index),
+            }
         )
     elif near(width_in, trim_w * pages_wide) and near(height_in, trim_h):
         checks.append(
