@@ -873,7 +873,8 @@ class GenericBookBuilder:
                  publisher_url='www.dandhpublishing.com',
                  chapter_end_ornament='fleuron',
                  language='en_GB',
-                 template='narrative'):
+                 template='narrative',
+                 interior_overrides=None):
         self.md_path = md_path
         self.output_path = output_path
         self.title = title
@@ -885,7 +886,14 @@ class GenericBookBuilder:
         self.language = language
         self.template = template
         self.verso_counter = 0
-        self.tpl = TEMPLATES.get(template, TEMPLATES['narrative'])
+        # Copy the template so per-book interior overrides never mutate the
+        # shared registry (the service is long-running and serves many books).
+        self.tpl = dict(TEMPLATES.get(template, TEMPLATES['narrative']))
+        if interior_overrides:
+            for _key, _val in interior_overrides.items():
+                if _val is None or _val == '':
+                    continue
+                self.tpl[_key] = _val
         self.toc_title = get_toc_title(language)
         # Cookbook-style templates treat ## as recipe titles, not subtitles.
         self.blocks = parse_manuscript_generic(
