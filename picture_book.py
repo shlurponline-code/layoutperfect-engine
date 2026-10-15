@@ -338,6 +338,23 @@ def front_matter_pages(meta):
     return pages
 
 
+def back_matter_pages(meta):
+    """Generated pages that follow the story: author note, activity, notes."""
+    if not meta or meta.get("generate", True) is False:
+        return []
+    pages = []
+    if str(meta.get("about_author") or "").strip():
+        pages.append("about_author")
+    if str(meta.get("activity_text") or "").strip():
+        pages.append("activity")
+    try:
+        blanks = max(0, int(meta.get("blank_pages") or 0))
+    except Exception:
+        blanks = 0
+    pages.extend(["blank"] * blanks)
+    return pages
+
+
 def render_front_matter_page(kind, meta, trim_w, trim_h, dpi):
     """Draw a generated front matter page on a full sheet, sized for print."""
     sheet_w = _px(trim_w + BLEED_IN, dpi)
@@ -412,6 +429,24 @@ def render_front_matter_page(kind, meta, trim_w, trim_h, dpi):
         font = _load_font(dpi * 0.19, "italic")
         lines = _wrap_px(meta.get("dedication"), font, usable)
         block(lines, font, dpi * 0.26, centre_y - leading_half(len(lines), dpi * 0.26))
+    elif kind == "about_author":
+        heading_font = _load_font(dpi * 0.19, "bold")
+        body = _load_font(dpi * 0.115)
+        draw.text((centre_x, sheet_h * 0.22), "About the Author", font=heading_font, fill=ink, anchor="mm")
+        lines = _wrap_px(meta.get("about_author"), body, usable)
+        block(lines, body, dpi * 0.19, sheet_h * 0.32)
+    elif kind == "activity":
+        heading_font = _load_font(dpi * 0.2, "bold")
+        body = _load_font(dpi * 0.12)
+        draw.text(
+            (centre_x, sheet_h * 0.22),
+            str(meta.get("activity_title") or "Activity"),
+            font=heading_font,
+            fill=ink,
+            anchor="mm",
+        )
+        lines = _wrap_px(meta.get("activity_text"), body, usable)
+        block(lines, body, dpi * 0.2, sheet_h * 0.34)
     return page
 
 
@@ -801,6 +836,20 @@ def assemble_picture_book(req):
             recto = (len(sheets) + 1) % 2 == 1
             sheets.append(page_sheet(page, trim_w, trim_h, dpi, recto))
             recto_flags.append(recto)
+
+    # Back matter follows the story: author note, activity page, notes pages.
+    for kind in back_matter_pages(front_meta):
+        if kind == "blank":
+            sheets.append(
+                Image.new(
+                    "RGB",
+                    (_px(trim_w + BLEED_IN, dpi), _px(trim_h + 2 * BLEED_IN, dpi)),
+                    (255, 255, 255),
+                )
+            )
+        else:
+            sheets.append(render_front_matter_page(kind, front_meta, trim_w, trim_h, dpi))
+        recto_flags.append(len(sheets) % 2 == 1)
 
     if len(sheets) % 2 == 1:
         sheets.append(Image.new("RGB", (_px(trim_w + BLEED_IN, dpi), _px(trim_h + 2 * BLEED_IN, dpi)), (255, 255, 255)))
