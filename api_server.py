@@ -599,6 +599,64 @@ def picture_book_download(job: str, kind: str = "print"):
         raise HTTPException(status_code=404, detail="File not available")
     return FileResponse(path, media_type="application/pdf", filename=name)
 
+# --------------------------------------------------- Artwork intake
+class ArtworkRequest(BaseModel):
+    api_key: str
+    source_url: str = Field(default="")
+    page: int = Field(default=1)
+    dpi: float = Field(default=300.0)
+    max_px: int = Field(default=480)
+
+
+def _pdf_intake():
+    """Imported lazily so a missing PyMuPDF cannot stop the engine booting."""
+    import pdf_intake
+    return pdf_intake
+
+
+@app.post("/picture-book/pdf-probe")
+def picture_book_pdf_probe(req: ArtworkRequest):
+    """Page count and trim geometry of an artwork PDF, before rendering."""
+    check_auth(req.api_key)
+    try:
+        return _pdf_intake().probe_pdf(req.source_url)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Could not read that PDF: " + str(e))
+
+
+@app.post("/picture-book/pdf-page")
+def picture_book_pdf_page(req: ArtworkRequest):
+    """One PDF page at print resolution, cropped to the page's crop box."""
+    check_auth(req.api_key)
+    try:
+        result = _pdf_intake().render_pdf_page(req.source_url, req.page, req.dpi)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Could not extract that page: " + str(e))
+    image = result["image"]
+    return {
+        "page": result["page"],
+        "page_count": result["page_count"],
+        "dpi": result["dpi"],
+        "crop_applied": result["crop_applied"],
+        "marks_band_in": result["marks_band_in"],
+        "width_px": image.width,
+        "height_px": image.height,
+        "width_in": round(image.width / 300.0, 3),
+        "height_in": round(image.height / 300.0, 3),
+        "jpeg_base64": _pdf_intake().jpeg_base64(image),
+    }
+
+
+@app.post("/picture-book/thumbnail")
+def picture_book_thumbnail(req: ArtworkRequest):
+    """Small JPEG preview for artwork a browser cannot display (TIFF)."""
+    check_auth(req.api_key)
+    try:
+        return _pdf_intake().image_thumbnail(req.source_url, req.max_px)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Could not preview that file: " + str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
