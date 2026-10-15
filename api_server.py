@@ -540,6 +540,65 @@ def word_count(req: dict):
     }
 
 
+
+
+# --------------------------------------------------- Picture Book Assembly
+from fastapi.responses import FileResponse
+from picture_book import assemble_picture_book, get_picture_book_file
+from picture_book import run_preflight as picture_book_preflight
+
+
+class PictureBookRequest(BaseModel):
+    api_key: str
+    project_id: str = Field(default="pb")
+    trim_size: str = Field(default="8.25x6")
+    paper_type: str = Field(default="white")
+    input_mode: str = Field(default="single")
+    images: list = Field(default_factory=list)
+    front_matter: dict = Field(default_factory=dict)
+    output: dict = Field(default_factory=dict)
+
+
+def _picture_book_payload(req: PictureBookRequest) -> dict:
+    return {
+        "project_id": req.project_id,
+        "trim_size": req.trim_size,
+        "paper_type": req.paper_type,
+        "input_mode": req.input_mode,
+        "images": req.images,
+        "front_matter": req.front_matter,
+        "output": req.output,
+    }
+
+
+@app.post("/picture-book/preflight")
+def picture_book_preflight_route(req: PictureBookRequest):
+    """Validate artwork only - no PDF is produced."""
+    check_auth(req.api_key)
+    try:
+        report = picture_book_preflight(_picture_book_payload(req))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Pre-flight failed: " + str(e))
+    return {"status": "success", "project_id": req.project_id, "preflight": report}
+
+
+@app.post("/picture-book/assemble")
+def picture_book_assemble_route(req: PictureBookRequest):
+    """Assemble the print-ready interior PDF and the proof preview."""
+    check_auth(req.api_key)
+    try:
+        return assemble_picture_book(_picture_book_payload(req))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Assembly failed: " + str(e))
+
+
+@app.get("/picture-book/download")
+def picture_book_download(job: str, kind: str = "print"):
+    path, name = get_picture_book_file(job, kind)
+    if not path or not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not available")
+    return FileResponse(path, media_type="application/pdf", filename=name)
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
