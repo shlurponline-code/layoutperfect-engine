@@ -16,6 +16,8 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.utils import ImageReader
 from templates import TEMPLATES, draw_ornament, draw_scene_break, format_chapter_number
+from interior import (InteriorFeatures, extract_marked_blocks, apply_marked_blocks,
+                      resolve_font)
 
 # Supported image formats
 SUPPORTED_IMG = {'.jpg', '.jpeg', '.png', '.tiff', '.tif'}
@@ -718,7 +720,7 @@ def is_toc_placeholder_line(text):
     return t in _TOC_PLACEHOLDER_TEXTS
 
 
-def parse_manuscript_generic(filepath, use_subtitles=True):
+def parse_manuscript_generic(filepath, use_subtitles=True, blockquote_pullquotes=False):
     """Generic parser for novels, non-fiction, and any standard markdown manuscript.
     Handles: # Part, # Chapter, ## Subtitle, body text, scene breaks (*** ---),
     and back matter (Author's Note, Acknowledgements, About, etc.).
@@ -727,7 +729,8 @@ def parse_manuscript_generic(filepath, use_subtitles=True):
     subheading instead of swallowing it as the chapter's subtitle (cookbook
     sections are followed by a recipe title, not a subtitle)."""
     with open(filepath, 'r', encoding='utf-8') as f:
-        raw_lines = f.read().split('\n')
+        raw_lines, _marked = extract_marked_blocks(
+            f.read().split('\n'), blockquotes=blockquote_pullquotes)
     
     paras = join_paragraphs(raw_lines)
     blocks = []
@@ -854,7 +857,7 @@ def parse_manuscript_generic(filepath, use_subtitles=True):
         
         i += 1
     
-    return blocks
+    return apply_marked_blocks(blocks, _marked)
 
 
 # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
@@ -886,12 +889,20 @@ class GenericBookBuilder:
         self.toc_title = get_toc_title(language)
         # Cookbook-style templates treat ## as recipe titles, not subtitles.
         self.blocks = parse_manuscript_generic(
-            md_path, use_subtitles=self.tpl.get('chapter_subtitles', True))
+            md_path, use_subtitles=self.tpl.get('chapter_subtitles', True),
+            blockquote_pullquotes=bool(self.tpl.get('pull_quote_from_blockquote', False)))
         for _blk in self.blocks:
             if 'body' in _blk:
                 for _item in _blk['body']:
                     if _item.get('type') == 'para':
                         _item['text'] = convert_quotation_marks(_item['text'], language)
+                    elif _item.get('type') == 'pull_quote':
+                        _item['text'] = convert_quotation_marks(_item.get('text', ''), language)
+                        if _item.get('attribution'):
+                            _item['attribution'] = convert_quotation_marks(_item['attribution'], language)
+                    elif _item.get('type') == 'callout':
+                        _item['lines'] = [convert_quotation_marks(_l, language)
+                                          for _l in _item.get('lines', [])]
             elif _blk.get('type') == 'para':
                 _blk['text'] = convert_quotation_marks(_blk['text'], language)
         self.image_base_dir = os.path.dirname(os.path.abspath(md_path))
@@ -1054,11 +1065,16 @@ class GenericBookBuilder:
                 for item in blk.get('body', []):
                     if item['type'] == 'para':
                         r._draw_content(item['text'])
+                    elif item['type'] == 'pull_quote':
+                        r.render_pull_quote(item.get('text', ''), item.get('attribution'))
+                    elif item['type'] == 'callout':
+                        r.render_callout(item.get('kind', 'callout'), item.get('heading', ''),
+                                         item.get('lines', []))
                     elif item['type'] == 'subheading':
                         # Sub-heading styling comes from the active template.
                         r.render_subheading(item['text'], item.get('level', 1))
                     elif item['type'] == 'scene_break':
-                        _sb = r.tpl.get('scene_break', 'dots') if hasattr(r, 'tpl') else 'dots'
+                        _sb = r.scene_break_style_name()
                         # A template can suppress scene breaks entirely (cookbook).
                         if _sb == 'none':
                             continue
@@ -1077,8 +1093,7 @@ class GenericBookBuilder:
                             continue
                         r.current_y -= 14
                         cx = r._lm() + r._tw() / 2
-                        draw_scene_break(r.c, r.current_y, cx, _sb, C_MID)
-                        r.current_y -= 14
+                        r.render_scene_break(_sb)
                     elif item['type'] == 'image':
                         r._draw_content(item['text'])
                     elif item['type'] == 'table':
@@ -1164,7 +1179,7 @@ class GenericBookBuilder:
         with open(self.output_path, 'wb') as f:
             writer.write(f)
 
-class BookRenderer:
+class BookRenderer(InteriorFeatures):
     def __init__(self, output_path):
         self.c = canvas.Canvas(output_path, pagesize=(PAGE_W, PAGE_H), pdfVersion=(1, 7))
         self.c.setTitle("From These Streets")
@@ -1196,6 +1211,8 @@ class BookRenderer:
     
     def _draw_header(self):
         tpl = getattr(self, 'tpl', {})
+        if self.render_running_header():
+            return
         style = tpl.get('header_style', 'centered')
         if self.suppress_hdr or self.is_front_matter or style == 'none':
             return
@@ -1228,6 +1245,8 @@ class BookRenderer:
     
     def _draw_folio(self):
         tpl = getattr(self, 'tpl', {})
+        if self.render_styled_page_number():
+            return
         if self.is_front_matter:
             return
         if getattr(self, '_suppress_folio_this_page', False):
@@ -2105,6 +2124,8 @@ class BookRenderer:
         if meta and tpl.get('meta_size'):
             self._draw_meta_line(meta.group(1), meta.group(2))
             return
+        if self.draw_drop_cap_paragraph(stripped):
+            return
         self._draw_para(text)
 
     def render_table(self, headers, rows):
@@ -2384,6 +2405,8 @@ class BookRenderer:
     
     def render_chapter_opener(self, title, subtitle=''):
         """Start chapter on recto page, return with current_y set."""
+        if self.render_ornamental_chapter_opener(title, subtitle):
+            return
         tpl = getattr(self, 'tpl', {})
         self._ensure_recto()
         self.is_front_matter = False
@@ -2504,8 +2527,8 @@ class BookRenderer:
             draw_ornament(self.c, self.current_y, cx, ornament_style, C_BROWN)
             self.current_y -= 30
         
-        # Drop cap flag for first paragraph
-        self._drop_cap_style = tpl.get('drop_cap', 'none')
+        # Arm the drop cap for this chapter's first paragraph.
+        self.arm_drop_cap()
     
     def render_chapter_end(self):
         self._check_page(50)
