@@ -869,7 +869,7 @@ class InteriorFeatures:
 
         def _draw_hdr(method, x, text):
             """Draw header text with CJK-aware font switching."""
-            hdr_font = e.cjk_aware_font(font, text)
+            hdr_font = e.cjk_aware_font(text, font)
             c.setFont(hdr_font, size)
             method(x, y, text)
 
