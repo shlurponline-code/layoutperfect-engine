@@ -495,8 +495,7 @@ def typeset(req: TypesetRequest):
         )
 
     except Exception as e:
-        import traceback as _tb
-        raise HTTPException(status_code=500, detail=f"Typesetting failed: {str(e)} ||DIAG|| {_tb.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Typesetting failed: {str(e)}")
 
     finally:
         # Clean up temp files
