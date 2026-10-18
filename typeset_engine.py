@@ -667,7 +667,7 @@ TOC_TITLES = {
     'en_GB': 'Table of Contents',
     'en_US': 'Table of Contents',
     'en': 'Table of Contents',
-    'fr': 'Table des matiÃ¨res',
+    'fr': 'Table des matières',
     'de': 'Inhaltsverzeichnis',
     'es': 'Ãndice',
     'it': 'Indice',
