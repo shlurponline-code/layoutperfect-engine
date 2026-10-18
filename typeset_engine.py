@@ -137,7 +137,14 @@ def has_cjk(text):
             0x3400 <= cp <= 0x4DBF or   # CJK Extension A
             0x3000 <= cp <= 0x303F or   # CJK Symbols and Punctuation
             0x3040 <= cp <= 0x30FF or   # Hiragana + Katakana
-            0xFF00 <= cp <= 0xFFEF):    # Halfwidth/Fullwidth Forms
+            0x31F0 <= cp <= 0x31FF or   # Katakana Phonetic Extensions
+            0x3200 <= cp <= 0x32FF or   # Enclosed CJK Letters
+            0xF900 <= cp <= 0xFAFF or   # CJK Compatibility Ideographs
+            0xFE30 <= cp <= 0xFE4F or   # CJK Compatibility Forms
+            0xFF00 <= cp <= 0xFFEF or   # Halfwidth/Fullwidth Forms
+            0x1100 <= cp <= 0x11FF or   # Hangul Jamo
+            0xAC00 <= cp <= 0xD7AF or   # Hangul Syllables
+            0x20000 <= cp <= 0x2A6DF):  # CJK Extension B
             return True
     return False
 
@@ -147,6 +154,7 @@ def cjk_aware_font(text, font):
         mapping = {
             'Gar': 'CJK', 'GarB': 'CJKB', 'GarI': 'CJKI', 'GarBI': 'CJKBI',
             'Sans': 'CJK', 'SansB': 'CJKB', 'SansI': 'CJKI', 'SansBI': 'CJKBI',
+            'Mono': 'CJK', 'MonoB': 'CJKB', 'MonoI': 'CJKI', 'MonoBI': 'CJKBI',
         }
         return mapping.get(font, 'CJK')
     return font
@@ -209,21 +217,28 @@ def convert_quotation_marks(text, lang='en_GB'):
     return ''.join(result)
 
 def set_language_fonts(lang='en_GB'):
-    """Switch registered fonts to CJK-compatible versions for Japanese."""
-    if is_japanese(lang):
+    """Switch registered fonts to CJK-compatible versions for CJK languages."""
+    if is_japanese(lang) or _lang_base(lang) in ('zh', 'ko'):
         reg = _find_cjk_font(bold=False)
         bold = _find_cjk_font(bold=True)
         if reg:
-            pdfmetrics.registerFont(TTFont('Gar', reg, subfontIndex=0))
-            pdfmetrics.registerFont(TTFont('GarI', reg, subfontIndex=0))
-            if bold:
-                pdfmetrics.registerFont(TTFont('GarB', bold, subfontIndex=0))
-                pdfmetrics.registerFont(TTFont('GarBI', bold, subfontIndex=0))
-            else:
-                pdfmetrics.registerFont(TTFont('GarB', reg, subfontIndex=0))
-                pdfmetrics.registerFont(TTFont('GarBI', reg, subfontIndex=0))
-            pdfmetrics.registerFontFamily('Gar', normal='Gar', bold='GarB',
-                                          italic='GarI', boldItalic='GarBI')
+            # Re-register ALL font families to CJK so every template font
+            # (Gar, Sans, Mono) can render CJK characters.
+            for family, normal, b, italic, bi in [
+                ('Gar', 'Gar', 'GarB', 'GarI', 'GarBI'),
+                ('Sans', 'Sans', 'SansB', 'SansI', 'SansBI'),
+                ('Mono', 'Mono', 'MonoB', 'MonoI', 'MonoBI'),
+            ]:
+                pdfmetrics.registerFont(TTFont(normal, reg, subfontIndex=0))
+                pdfmetrics.registerFont(TTFont(italic, reg, subfontIndex=0))
+                if bold:
+                    pdfmetrics.registerFont(TTFont(b, bold, subfontIndex=0))
+                    pdfmetrics.registerFont(TTFont(bi, bold, subfontIndex=0))
+                else:
+                    pdfmetrics.registerFont(TTFont(b, reg, subfontIndex=0))
+                    pdfmetrics.registerFont(TTFont(bi, reg, subfontIndex=0))
+                pdfmetrics.registerFontFamily(family, normal=normal, bold=b,
+                                              italic=italic, boldItalic=bi)
         else:
             print('WARNING: CJK fonts not found')
     else:
@@ -669,32 +684,32 @@ TOC_TITLES = {
     'en': 'Table of Contents',
     'fr': 'Table des matières',
     'de': 'Inhaltsverzeichnis',
-    'es': 'Ãndice',
+    'es': 'Índice',
     'it': 'Indice',
-    'pt': 'Ãndice',
-    'pt_BR': 'SumÃ¡rio',
+    'pt': 'Índice',
+    'pt_BR': 'Sumário',
     'nl': 'Inhoudsopgave',
-    'sv': 'InnehÃ¥llsfÃ¶rteckning',
+    'sv': 'Innehållsförteckning',
     'da': 'Indholdsfortegnelse',
     'nb': 'Innholdsfortegnelse',
     'nn': 'Innhaldsfortegnelse',
-    'fi': 'SisÃ¤llysluettelo',
-    'pl': 'Spis treÅci',
+    'fi': 'Sisällysluettelo',
+    'pl': 'Spis treści',
     'cs': 'Obsah',
     'sk': 'Obsah',
-    'hu': 'TartalomjegyzÃ©k',
+    'hu': 'Tartalomjegyzék',
     'ro': 'Cuprins',
-    'ru': 'Ð¡Ð¾Ð´ÐµÑÐ¶Ð°Ð½Ð¸Ðµ',
-    'uk': 'ÐÐ¼ÑÑÑ',
-    'el': 'Î ÎµÏÎ¹ÎµÏÏÎ¼ÎµÎ½Î±',
-    'tr': 'Ä°Ã§indekiler',
-    'ar': 'ÙÙØ±Ø³ Ø§ÙÙØ­ØªÙÙØ§Øª',
-    'he': '×ª××× ××¢× ××× ××',
-    'ja': 'ç®æ¬¡',
-    'zh': 'ç®å½',
-    'zh_CN': 'ç®å½',
-    'zh_TW': 'ç®é',
-    'ko': 'ì°¨ë¡',
+    'ru': 'Содержание',
+    'uk': 'Зміст',
+    'el': 'Περιεχόμενα',
+    'tr': 'İçindekiler',
+    'ar': 'فهرس المحتويات',
+    'he': 'תוכן עניינים',
+    'ja': '目次',
+    'zh': '目录',
+    'zh_CN': '目录',
+    'zh_TW': '目錄',
+    'ko': '차례',
 }
 
 _TOC_PLACEHOLDER_TEXTS = set(TOC_TITLES.values()) | {'Contents'}
@@ -1018,11 +1033,12 @@ class GenericBookBuilder:
             if not line:
                 y -= 8
                 continue
-            wrapped = r._wrap(line, 'Gar', 9.5, r._tw())
+            _cr_font = cjk_aware_font(line, 'Gar')
+            wrapped = r._wrap(line, _cr_font, 9.5, r._tw())
             for wl in wrapped:
                 if y < MARGIN_BOTTOM + 30:
                     break
-                r.c.setFont('Gar', 9.5)
+                r.c.setFont(_cr_font, 9.5)
                 r.c.setFillColor(C_BODY)
                 if line == self.publisher_url:
                     r.c.drawCentredString(r._lm() + r._tw() / 2, y, wl)
@@ -1039,7 +1055,8 @@ class GenericBookBuilder:
             r.render_toc(toc_entries)
         else:
             r._ensure_recto()
-            r._ctxt(PAGE_H - MARGIN_TOP - 30, r.toc_title, 'GarB', 22, C_BODY)
+            r._ctxt(PAGE_H - MARGIN_TOP - 30, r.toc_title,
+                    cjk_aware_font(r.toc_title, 'GarB'), 22, C_BODY)
             r._finish_page()
             r._new_page(suppress=True)
             r._finish_page()
@@ -1225,6 +1242,9 @@ class BookRenderer(InteriorFeatures):
         if self.suppress_hdr or self.is_front_matter or style == 'none':
             return
         hdr_font = tpl.get('header_font', 'GarI')
+        # CJK safety net: switch font when header/chapter text contains CJK
+        _hdr_txt = (self.header_text or '') + (getattr(self, 'current_chapter_title', '') or '')
+        hdr_font = cjk_aware_font(_hdr_txt, hdr_font)
         l, r = self._margins()
         
         self.c.setFont(hdr_font, HDR_SZ)
@@ -2323,7 +2343,8 @@ class BookRenderer(InteriorFeatures):
     def render_toc(self, entries):
         self._ensure_recto()
         self.current_y = PAGE_H - MARGIN_TOP - 30
-        self._ctxt(self.current_y, self.toc_title, 'GarB', 22, C_BODY)
+        self._ctxt(self.current_y, self.toc_title,
+                   cjk_aware_font(self.toc_title, 'GarB'), 22, C_BODY)
         self.current_y -= 40
 
         lm = self._lm()
@@ -2335,12 +2356,12 @@ class BookRenderer(InteriorFeatures):
 
         for title, page, level in entries:
             if level == 0:
-                font, sz = 'GarB', 11
+                font, sz = cjk_aware_font(title, 'GarB'), 11
                 indent = 0
                 line_h = 16
                 pre_gap = 6
             else:
-                font, sz = 'Gar', 10
+                font, sz = cjk_aware_font(title, 'Gar'), 10
                 indent = 18
                 line_h = 14
                 pre_gap = 0
@@ -2438,7 +2459,7 @@ class BookRenderer(InteriorFeatures):
         num_style = tpl.get('chapter_number_style', 'none')
         num_text = format_chapter_number(self.chapter_count, num_style)
         if num_text:
-            num_font = tpl.get('heading_font', 'GarB')
+            num_font = cjk_aware_font(num_text, tpl.get('heading_font', 'GarB'))
             if num_style == 'large_sans_topleft':
                 num_sz = tpl.get('chapter_title_size', 48)
                 self.c.setFont(num_font, num_sz)
@@ -2465,7 +2486,7 @@ class BookRenderer(InteriorFeatures):
         
         # Chapter title
         title_pos = tpl.get('chapter_title_position', 'centered')
-        title_font = tpl.get('chapter_title_font', 'GarB')
+        title_font = cjk_aware_font(title, tpl.get('chapter_title_font', 'GarB'))
         title_sz = tpl.get('chapter_title_size', CH_TITLE_SZ)
         title_color = self._tpl_color('chapter_title_color', C_BODY)
         
