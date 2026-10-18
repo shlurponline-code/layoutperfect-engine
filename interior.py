@@ -573,12 +573,16 @@ class InteriorFeatures:
         ornament = str(self.icfg('chapter_ornament', 'none') or 'none').strip().lower()
         heading_font = resolve_font(self.icfg('heading_font', 'GarB'), 'GarB')
         title_font = resolve_font(self.icfg('chapter_title_font', heading_font), heading_font)
+        # CJK safety net: switch font when title contains CJK characters
+        title_font = e.cjk_aware_font(title, title_font)
         title_size = float(self.icfg('chapter_title_size', None) or e.CH_TITLE_SZ)
         num_font = resolve_font(self.icfg('chapter_number_font', 'Sans'), 'Sans')
         num_size = float(self.icfg('chapter_number_size', 11) or 11)
         num_text = self._opener_number_text(self.icfg('chapter_number_format', 'word'))
         if num_text and self.icfg('chapter_number_case', None):
             num_text = _apply_case(num_text, self.icfg('chapter_number_case'))
+        if num_text:
+            num_font = e.cjk_aware_font(num_text, num_font)
         title_case = self.icfg('chapter_title_case', None)
         title_pos = str(self.icfg('chapter_title_position', 'centered') or 'centered').lower()
         title_lines = []
@@ -589,6 +593,8 @@ class InteriorFeatures:
         orn_w = max(24.0, tw * orn_frac)
         orn_h = self.chapter_ornament_height(ornament, orn_w)
         epi_font = resolve_font(self.icfg('epigraph_font', 'GarI'), 'GarI')
+        if subtitle:
+            epi_font = e.cjk_aware_font(str(subtitle), epi_font)
         epi_size = float(self.icfg('epigraph_size', 10) or 10)
         epi_lines = (self._wrap(str(subtitle), epi_font, epi_size, tw - 30)
                      if subtitle and self.icfg('epigraph_font', None) else [])
