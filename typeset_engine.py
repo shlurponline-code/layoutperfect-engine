@@ -2374,19 +2374,52 @@ class BookRenderer(InteriorFeatures):
 
             # Wrap title into lines that fit within title_max_w
             max_title_w = title_max_w - indent
-            words = title.split()
-            wrapped_lines = []
-            current_line = ''
-            for word in words:
-                test = (current_line + ' ' + word).strip()
-                if self.c.stringWidth(test, font, sz) <= max_title_w:
-                    current_line = test
-                else:
-                    if current_line:
-                        wrapped_lines.append(current_line)
-                    current_line = word
-            if current_line:
-                wrapped_lines.append(current_line)
+
+            # For CJK text, split into characters since Japanese/Chinese
+            # have no spaces between words; any character is a valid break.
+            if has_cjk(title) and ' ' not in title.strip():
+                # Pure CJK title (no spaces) - wrap character by character
+                wrapped_lines = []
+                current_line = ''
+                for ch in title:
+                    test = current_line + ch
+                    if self.c.stringWidth(test, font, sz) <= max_title_w:
+                        current_line = test
+                    else:
+                        if current_line:
+                            wrapped_lines.append(current_line)
+                        current_line = ch
+                if current_line:
+                    wrapped_lines.append(current_line)
+            else:
+                # Space-separated text (Latin or mixed) - wrap by word
+                words = title.split()
+                wrapped_lines = []
+                current_line = ''
+                for word in words:
+                    test = (current_line + ' ' + word).strip()
+                    if self.c.stringWidth(test, font, sz) <= max_title_w:
+                        current_line = test
+                    else:
+                        if current_line:
+                            wrapped_lines.append(current_line)
+                        # If a single word is still too wide (CJK mixed in),
+                        # break it character by character
+                        if has_cjk(word) and self.c.stringWidth(word, font, sz) > max_title_w:
+                            sub_line = ''
+                            for ch in word:
+                                sub_test = sub_line + ch
+                                if self.c.stringWidth(sub_test, font, sz) <= max_title_w:
+                                    sub_line = sub_test
+                                else:
+                                    if sub_line:
+                                        wrapped_lines.append(sub_line)
+                                    sub_line = ch
+                            current_line = sub_line
+                        else:
+                            current_line = word
+                if current_line:
+                    wrapped_lines.append(current_line)
             if not wrapped_lines:
                 wrapped_lines = [title]
 
