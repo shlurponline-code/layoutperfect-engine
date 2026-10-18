@@ -865,34 +865,40 @@ class InteriorFeatures:
         chapter = _apply_case(getattr(self, 'current_chapter_title', '') or '', case)
 
         c = self.c
-        c.setFont(font, size)
         c.setFillColor(color)
+
+        def _draw_hdr(method, x, text):
+            """Draw header text with CJK-aware font switching."""
+            hdr_font = e.cjk_aware_font(font, text)
+            c.setFont(hdr_font, size)
+            method(x, y, text)
+
         if pattern == 'author_title':
             if recto:
-                c.drawRightString(right_edge, y, title)
+                _draw_hdr(c.drawRightString, right_edge, title)
             else:
-                c.drawString(l, y, author)
+                _draw_hdr(c.drawString, l, author)
         elif pattern == 'title_chapter':
             if recto:
-                c.drawRightString(right_edge, y, chapter or title)
+                _draw_hdr(c.drawRightString, right_edge, chapter or title)
             else:
-                c.drawString(l, y, title)
+                _draw_hdr(c.drawString, l, title)
         elif pattern == 'chapter_only':
-            c.drawCentredString(cx, y, chapter or title)
+            _draw_hdr(c.drawCentredString, cx, chapter or title)
         elif pattern == 'author_only':
-            c.drawCentredString(cx, y, author)
+            _draw_hdr(c.drawCentredString, cx, author)
         elif pattern == 'title_only':
-            c.drawCentredString(cx, y, title)
+            _draw_hdr(c.drawCentredString, cx, title)
         elif pattern == 'chapter_author':
             if recto:
-                c.drawRightString(right_edge, y, author)
+                _draw_hdr(c.drawRightString, right_edge, author)
             else:
-                c.drawString(l, y, chapter or title)
+                _draw_hdr(c.drawString, l, chapter or title)
         elif pattern == 'author_chapter':
             if recto:
-                c.drawRightString(right_edge, y, chapter or title)
+                _draw_hdr(c.drawRightString, right_edge, chapter or title)
             else:
-                c.drawString(l, y, author)
+                _draw_hdr(c.drawString, l, author)
 
         self._draw_header_rule(l, right_edge, cx)
         return True
