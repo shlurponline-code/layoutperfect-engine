@@ -456,6 +456,24 @@ class InteriorFeatures:
         if indent > tw * 0.5:
             return False
 
+        # Keep the cap inside the paragraph: a short paragraph must not leave a
+        # giant letter hanging down into the paragraph below.
+        if style != 'raised' and n_lines > 2:
+            probe = self._wrap_widths(rest, font, size, tw - indent,
+                                      tw - float(self.icfg('first_line_indent', 0) or 0),
+                                      n_lines)
+            if len(probe) < n_lines:
+                n_lines = max(2, len(probe))
+                drop_size = ((n_lines - 1) * leading + cap_h_body) / cap_ratio
+                if cfg.get('size'):
+                    drop_size = float(cfg['size'])
+                drop_size = max(size * 1.6, drop_size)
+                c.setFont(cfg['font'], drop_size)
+                glyph_w = c.stringWidth(letter, cfg['font'], drop_size)
+                indent = quote_w + glyph_w + gap
+                if indent > tw * 0.5:
+                    return False
+
         baseline = (self.current_y if style == 'raised'
                     else self.current_y - (n_lines - 1) * leading)
 
@@ -506,6 +524,9 @@ class InteriorFeatures:
                               justify and i < len(lines) - 1)
             y -= leading
         self.current_y = y - 2 - float(self.icfg('paragraph_spacing', 0) or 0)
+        if style in ('ornamental', 'boxed'):
+            cap_bottom = baseline - drop_size * 0.24 - 3
+            self.current_y = min(self.current_y, cap_bottom - 12)
         return True
 
 
@@ -619,7 +640,13 @@ class InteriorFeatures:
             y -= num_size * 1.9
 
         if ornament not in ('none', ''):
-            y = self.draw_chapter_ornament(y, cx, ornament, orn_w)
+            orn_y = y
+            self.draw_chapter_ornament(orn_y, cx, ornament, orn_w)
+            # Clear the ornament's own height plus the title's ascent so the
+            # ornament never runs through the chapter title.
+            drawn_h = max(0.0, orn_h - self.ORNAMENT_GAP)
+            clearance = drawn_h * 0.5 + max(10.0, (title_size * 0.80) if title_lines else 14.0)
+            y = orn_y - clearance
 
         if title_lines:
             title_color = self.icolor('chapter_title_color', C_BODY)
