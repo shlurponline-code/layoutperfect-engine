@@ -646,7 +646,7 @@ class InteriorFeatures:
             # ornament never runs through the chapter title.
             drawn_h = float(getattr(self, '_ornament_drawn_h',
                                     max(0.0, orn_h - self.ORNAMENT_GAP)))
-            clearance = drawn_h * 0.5 + max(10.0, (title_size * 0.80) if title_lines else 14.0)
+            clearance = drawn_h * 0.5 + max(10.0, (title_size * 0.80) if title_lines else 14.0) + 6.0
             y = orn_y - clearance
 
         if title_lines:
