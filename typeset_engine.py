@@ -1102,16 +1102,23 @@ class GenericBookBuilder:
         
         # Copyright page
         r._new_page(suppress=True)
-        cx = r._lm() + r._tw() / 2
+        cx = PAGE_W / 2
+
+        def _pc(py, ptext, pfont, psz, pcolor):
+            pf = cjk_aware_font(ptext, pfont)
+            r.c.setFont(pf, psz)
+            r.c.setFillColor(pcolor)
+            r.c.drawCentredString(cx, py, ptext)
+
         y = PAGE_H - 2.3 * inch
         r._ornament(y)
         y -= 34
         for wl in r._wrap(self.title, 'GarB', 13.5, r._tw()):
-            r._ctxt(y, wl, 'GarB', 13.5, C_BODY)
+            _pc(y, wl, 'GarB', 13.5, C_BODY)
             y -= 18
         y -= 2
         for wl in r._wrap(self.author, 'GarI', 10.5, r._tw()):
-            r._ctxt(y, wl, 'GarI', 10.5, C_BROWN)
+            _pc(y, wl, 'GarI', 10.5, C_BROWN)
             y -= 14
         y -= 16
         r.c.setStrokeColor(C_BROWN)
@@ -1130,13 +1137,13 @@ class GenericBookBuilder:
             for wl in r._wrap(line, 'Gar', 8.8, r._tw()):
                 if y < MARGIN_BOTTOM + 60:
                     break
-                r._ctxt(y, wl, 'Gar', 8.8, C_MID)
+                _pc(y, wl, 'Gar', 8.8, C_MID)
                 y -= 12.5
             y -= 7
         r.c.setStrokeColor(C_BROWN)
         r.c.setLineWidth(0.4)
         r.c.line(cx - 18, MARGIN_BOTTOM + 36, cx + 18, MARGIN_BOTTOM + 36)
-        r._ctxt(MARGIN_BOTTOM + 22, self.publisher_url, 'GarI', 8.5, C_BROWN)
+        _pc(MARGIN_BOTTOM + 22, self.publisher_url, 'GarI', 8.5, C_BROWN)
         r._finish_page()
         
         # TOC placeholder or real TOC
