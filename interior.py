@@ -535,7 +535,7 @@ class InteriorFeatures:
                    'chapter_ornament', 'chapter_ornament_name',
                    'chapter_opener_drop', 'chapter_body_same_page',
                    'epigraph_font', 'chapter_number_font',
-                   'chapter_number_size', 'chapter_title_size')
+                   'chapter_number_size')
     ORNAMENT_HEIGHTS = {
         'horizontal_rule': 14.0, 'rule': 14.0, 'line': 14.0,
         'diamond_rule': 16.0, 'rule_with_diamond': 16.0,
@@ -644,7 +644,8 @@ class InteriorFeatures:
             self.draw_chapter_ornament(orn_y, cx, ornament, orn_w)
             # Clear the ornament's own height plus the title's ascent so the
             # ornament never runs through the chapter title.
-            drawn_h = max(0.0, orn_h - self.ORNAMENT_GAP)
+            drawn_h = float(getattr(self, '_ornament_drawn_h',
+                                    max(0.0, orn_h - self.ORNAMENT_GAP)))
             clearance = drawn_h * 0.5 + max(10.0, (title_size * 0.80) if title_lines else 14.0)
             y = orn_y - clearance
 
@@ -702,14 +703,18 @@ class InteriorFeatures:
         lw = float(self.icfg('chapter_ornament_stroke_width', 0.6) or 0.6)
         name = name or self.icfg('chapter_ornament_name', '') or ''
         gap = self.ORNAMENT_GAP
+        self._ornament_drawn_h = 6.0
         if style in ('horizontal_rule', 'rule', 'line'):
             ornaments.draw_rule(c, self.icfg('chapter_rule_style', 'thin'), cx, y, width, color, lw)
         elif style in ('diamond_rule', 'rule_with_diamond'):
+            self._ornament_drawn_h = 18.0
             ornaments.draw_rule(c, 'ornamental_centre', cx, y, width, color, lw)
         elif style in ('bracket_ornament', 'brackets', 'bracket'):
+            self._ornament_drawn_h = 24.0
             self._draw_bracket_ornament(cx, y, width, color, lw)
             gap = 24.0
         elif style in ('triple_ornament', 'triple'):
+            self._ornament_drawn_h = 30.0
             ornaments.draw_triple(c, name or 'leaf', cx, y, min(width * 1.4, tw * 0.7), color, lw)
         elif style == 'frame':
             ornaments.draw_rule(c, 'thin', cx, y, width * 0.45, color, lw)
@@ -721,9 +726,10 @@ class InteriorFeatures:
             if style == 'fleuron':
                 draw_w = min(width * 1.6, 46.0)
             elif style in ('flourish', 'ornamental'):
-                draw_w = min(width * 2.0, tw * 0.72)
+                draw_w = min(width * 1.3, tw * 0.42)
             else:
                 draw_w = min(width * 1.7, tw * 0.6)
+            self._ornament_drawn_h = max(22.0, min(58.0, draw_w * 0.52))
             ornaments.draw(c, key, cx, y, draw_w, color, lw)
         return y - gap
 
