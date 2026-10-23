@@ -126,7 +126,7 @@ def health():
     return {"status": "ok", "engine": "Layout Perfect v1.0"}
 
 
-def append_author_central_page(pdf_path, trim_width, trim_height, author_central_url):
+def append_author_central_page(pdf_path, trim_width, trim_height, author_central_url, language="en_GB"):
     """Append an Author Central back page (recto) with QR code to the PDF."""
     import qrcode
     from reportlab.lib.pagesizes import inch
@@ -136,6 +136,7 @@ def append_author_central_page(pdf_path, trim_width, trim_height, author_central
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.lib.utils import ImageReader
     from pypdf import PdfReader, PdfWriter
+    from typeset_engine import get_front_text, cjk_aware_font, has_cjk
 
     FD = "/usr/share/fonts/truetype/freefont"
     pdfmetrics.registerFont(TTFont("Gar", f"{FD}/FreeSerif.ttf"))
@@ -157,6 +158,20 @@ def append_author_central_page(pdf_path, trim_width, trim_height, author_central
     display_url = url.replace("https://", "").replace("http://", "")
 
     def wrap_text(text, font, size, max_width):
+        # CJK scripts have no word spaces: break between characters instead.
+        if has_cjk(text) and " " not in text.strip():
+            lines = []
+            current = ""
+            for ch in text:
+                if pdfmetrics.stringWidth(current + ch, font, size) <= max_width:
+                    current += ch
+                else:
+                    if current:
+                        lines.append(current)
+                    current = ch
+            if current:
+                lines.append(current)
+            return lines
         words = text.split()
         lines = []
         current = []
@@ -191,45 +206,42 @@ def append_author_central_page(pdf_path, trim_width, trim_height, author_central
     ac_path = pdf_path.replace(".pdf", "_author_central.pdf")
     c = cv.Canvas(ac_path, pagesize=(PAGE_W, PAGE_H))
 
+    # Copy follows the manuscript's language
+    heading = get_front_text(language, "ac_heading")
+    para1 = get_front_text(language, "ac_body")
+    para2 = get_front_text(language, "ac_scan")
+    qa_msg = get_front_text(language, "ac_qa")
+
     # Heading
     y = PAGE_H - MARGIN - 50
-    c.setFont("GarB", 16)
+    c.setFont(cjk_aware_font(heading, "GarB"), 16)
     c.setFillColor(C_BODY)
-    c.drawCentredString(PAGE_W / 2, y, "Discover more from this author")
+    c.drawCentredString(PAGE_W / 2, y, heading)
     y -= 35
 
-    # Paragraphs
-    para1 = ("Every book has a story behind the story. Visit the author's page at "
-             "AuthorCentral to find out more about the person who wrote the words "
-             "you've just read. You'll find their complete catalogue of published works, "
-             "background on how this book came to be written, and ways to get in touch "
-             "directly. If you enjoyed this book, there may be bonus content waiting "
-             "for you, including material that didn't make the final cut, maps, reading "
-             "group discussion points, and recommendations for what to read next.")
-
-    para2 = "Scan the QR code below or visit authorcentral.net to explore."
-
     text_w = PAGE_W - 2 * MARGIN
-    c.setFont("Gar", 10.5)
     c.setFillColor(C_BODY)
-    for line in wrap_text(para1, "Gar", 10.5, text_w):
+    _p1_font = cjk_aware_font(para1, "Gar")
+    for line in wrap_text(para1, _p1_font, 10.5, text_w):
         y -= 14.5
+        c.setFont(cjk_aware_font(line, "Gar"), 10.5)
         c.drawString(MARGIN, y, line)
     y -= 14.5
-    for line in wrap_text(para2, "Gar", 10.5, text_w):
+    _p2_font = cjk_aware_font(para2, "Gar")
+    for line in wrap_text(para2, _p2_font, 10.5, text_w):
         y -= 14.5
+        c.setFont(cjk_aware_font(line, "Gar"), 10.5)
         c.drawString(MARGIN, y, line)
 
     # Quality-assurance note - invites readers who spot an issue to reach
     # the publisher directly via the QR code, so genuine errors are caught
     # before they become public reviews.
-    qa_msg = ("Spotted something that doesn't look right? We'd love to hear "
-              "from you. Scan the code below to reach us directly.")
     y -= 22
-    c.setFont("GarI", 10.5)
     c.setFillColor(C_DARK)
-    for line in wrap_text(qa_msg, "GarI", 10.5, text_w):
+    _qa_font = cjk_aware_font(qa_msg, "GarI")
+    for line in wrap_text(qa_msg, _qa_font, 10.5, text_w):
         y -= 14.5
+        c.setFont(cjk_aware_font(line, "GarI"), 10.5)
         c.drawCentredString(PAGE_W / 2, y, line)
 
     # QR code (25mm square, centered)
@@ -414,7 +426,7 @@ def typeset(req: TypesetRequest):
 
         # Append Author Central back page if requested
         if req.add_author_central_page and req.author_central_url:
-            append_author_central_page(output_path, req.trim_width, req.trim_height, req.author_central_url)
+            append_author_central_page(output_path, req.trim_width, req.trim_height, req.author_central_url, req.language)
             # Re-verify font embedding after Author Central page merge
             verify_font_embedding(output_path)
 
