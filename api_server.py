@@ -212,56 +212,77 @@ def append_author_central_page(pdf_path, trim_width, trim_height, author_central
     para2 = get_front_text(language, "ac_scan")
     qa_msg = get_front_text(language, "ac_qa")
 
-    # Heading
-    y = PAGE_H - MARGIN - 50
-    c.setFont(cjk_aware_font(heading, "GarB"), 16)
-    c.setFillColor(C_BODY)
-    c.drawCentredString(PAGE_W / 2, y, heading)
-    y -= 35
+    cx = PAGE_W / 2
+
+    def _ac_ornament(oy):
+        c.setStrokeColor(C_DARK)
+        c.setFillColor(C_DARK)
+        c.setLineWidth(0.5)
+        c.line(cx - 34, oy, cx - 9, oy)
+        c.line(cx + 9, oy, cx + 34, oy)
+        c.saveState()
+        c.translate(cx, oy)
+        c.rotate(45)
+        c.rect(-2.6, -2.6, 5.2, 5.2, fill=1, stroke=0)
+        c.restoreState()
 
     text_w = PAGE_W - 2 * MARGIN
-    c.setFillColor(C_BODY)
-    _p1_font = cjk_aware_font(para1, "Gar")
-    for line in wrap_text(para1, _p1_font, 10.5, text_w):
-        y -= 14.5
-        c.setFont(cjk_aware_font(line, "Gar"), 10.5)
-        c.drawString(MARGIN, y, line)
-    y -= 14.5
-    _p2_font = cjk_aware_font(para2, "Gar")
-    for line in wrap_text(para2, _p2_font, 10.5, text_w):
-        y -= 14.5
-        c.setFont(cjk_aware_font(line, "Gar"), 10.5)
-        c.drawString(MARGIN, y, line)
+    wrap_w = text_w - 24
+    qr_size = 25 * 72 / 25.4
+    qr_bottom = MARGIN + 72
+    body_limit = qr_bottom + qr_size + 12
+
+    # Heading, centred beneath a drawn ornament
+    y = PAGE_H - MARGIN - 26
+    _ac_ornament(y)
+    y -= 30
+    for line in wrap_text(heading, cjk_aware_font(heading, "GarB"), 16, text_w):
+        c.setFont(cjk_aware_font(line, "GarB"), 16)
+        c.setFillColor(C_BODY)
+        c.drawCentredString(cx, y, line)
+        y -= 21
+    y -= 3
+    c.setStrokeColor(C_DARK)
+    c.setLineWidth(0.4)
+    c.line(cx - 24, y, cx + 24, y)
+    y -= 22
+
+    # Body copy, centred
+    for para in (para1, para2):
+        pf = cjk_aware_font(para, "Gar")
+        for line in wrap_text(para, pf, 9.3, wrap_w):
+            if y < body_limit:
+                break
+            c.setFont(cjk_aware_font(line, "Gar"), 9.3)
+            c.setFillColor(C_BODY)
+            c.drawCentredString(cx, y, line)
+            y -= 12.8
+        y -= 8
 
     # Quality-assurance note - invites readers who spot an issue to reach
     # the publisher directly via the QR code, so genuine errors are caught
     # before they become public reviews.
-    y -= 22
-    c.setFillColor(C_DARK)
-    _qa_font = cjk_aware_font(qa_msg, "GarI")
-    for line in wrap_text(qa_msg, _qa_font, 10.5, text_w):
-        y -= 14.5
-        c.setFont(cjk_aware_font(line, "GarI"), 10.5)
-        c.drawCentredString(PAGE_W / 2, y, line)
+    for line in wrap_text(qa_msg, cjk_aware_font(qa_msg, "GarI"), 9.3, wrap_w - 20):
+        if y < body_limit:
+            break
+        c.setFont(cjk_aware_font(line, "GarI"), 9.3)
+        c.setFillColor(C_DARK)
+        c.drawCentredString(cx, y, line)
+        y -= 12.8
 
-    # QR code (25mm square, centered)
-    qr_size = 25 * 72 / 25.4
-    qr_x = (PAGE_W - qr_size) / 2
-    y -= 50
-    c.drawImage(qr_reader, qr_x, y - qr_size, width=qr_size, height=qr_size)
-
-    # URL text below QR code
-    y -= qr_size + 25
+    # QR code and link, a centred group above the imprint
+    c.drawImage(qr_reader, cx - qr_size / 2, qr_bottom, width=qr_size, height=qr_size)
     c.setFont("GarI", 10)
     c.setFillColor(C_DARK)
-    c.drawCentredString(PAGE_W / 2, y, display_url)
+    c.drawCentredString(cx, qr_bottom - 19, display_url)
 
-    # Copyright at foot
-    c.setFont("Gar", 9)
+    # Imprint at foot
+    c.setStrokeColor(C_DARK)
+    c.setLineWidth(0.4)
+    c.line(cx - 18, MARGIN + 28, cx + 18, MARGIN + 28)
+    c.setFont("GarB", 7.6)
     c.setFillColor(C_GREY)
-    c.drawCentredString(PAGE_W / 2, MARGIN + 14, "Published by D&H Publishing International Ltd")
-    c.drawCentredString(PAGE_W / 2, MARGIN, "authorcentral.net")
-
+    c.drawCentredString(cx, MARGIN + 14, "D&H PUBLISHING INTERNATIONAL LTD")
     c.save()
 
     # Merge into main PDF, ensuring recto page
