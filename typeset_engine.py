@@ -1102,36 +1102,41 @@ class GenericBookBuilder:
         
         # Copyright page
         r._new_page(suppress=True)
-        y = PAGE_H - 2.0 * inch
-        r._ctxt(y, self.title, cjk_aware_font(self.title, 'GarB'), 14, C_BODY); y -= 20
-        r._ctxt(y, self.author, cjk_aware_font(self.author, 'GarI'), 11, C_BROWN); y -= 30
-        lm = r._lm()
+        cx = r._lm() + r._tw() / 2
+        y = PAGE_H - 2.3 * inch
+        r._ornament(y)
+        y -= 34
+        for wl in r._wrap(self.title, 'GarB', 13.5, r._tw()):
+            r._ctxt(y, wl, 'GarB', 13.5, C_BODY)
+            y -= 18
+        y -= 2
+        for wl in r._wrap(self.author, 'GarI', 10.5, r._tw()):
+            r._ctxt(y, wl, 'GarI', 10.5, C_BROWN)
+            y -= 14
+        y -= 16
+        r.c.setStrokeColor(C_BROWN)
+        r.c.setLineWidth(0.4)
+        r.c.line(cx - 26, y, cx + 26, y)
+        y -= 24
         for line in [
             get_front_text(self.language, 'first_published', year=2026, publisher=self.publisher),
             get_front_text(self.language, 'rights_reserved', year=2026, author=self.author),
             '',
             get_front_text(self.language, 'rights_paragraph'),
-            '',
-            f'{self.publisher_url}',
         ]:
             if not line:
-                y -= 8
+                y -= 10
                 continue
-            _cr_font = cjk_aware_font(line, 'Gar')
-            wrapped = r._wrap(line, _cr_font, 9.5, r._tw())
-            for wl in wrapped:
-                if y < MARGIN_BOTTOM + 30:
+            for wl in r._wrap(line, 'Gar', 8.8, r._tw()):
+                if y < MARGIN_BOTTOM + 60:
                     break
-                r.c.setFont(_cr_font, 9.5)
-                r.c.setFillColor(C_BODY)
-                if line == self.publisher_url:
-                    r.c.drawCentredString(r._lm() + r._tw() / 2, y, wl)
-                else:
-                    r.c.drawString(lm, y, wl)
-                y -= 13
-            y -= 3
-        y -= 10
-        r._ornament(y)
+                r._ctxt(y, wl, 'Gar', 8.8, C_MID)
+                y -= 12.5
+            y -= 7
+        r.c.setStrokeColor(C_BROWN)
+        r.c.setLineWidth(0.4)
+        r.c.line(cx - 18, MARGIN_BOTTOM + 36, cx + 18, MARGIN_BOTTOM + 36)
+        r._ctxt(MARGIN_BOTTOM + 22, self.publisher_url, 'GarI', 8.5, C_BROWN)
         r._finish_page()
         
         # TOC placeholder or real TOC
