@@ -555,6 +555,28 @@ class InteriorFeatures:
             return 0.0
         return self.ORNAMENT_HEIGHTS.get(style, min(34.0, width * 0.35)) + self.ORNAMENT_GAP
 
+    def ornament_extent(self, style, width):
+        """Half-height of the ornament above and below its anchor point."""
+        style = str(style or 'none').strip().lower()
+        tw = self._tw()
+        if style in ('horizontal_rule', 'rule', 'line'):
+            return 4.0
+        if style in ('diamond_rule', 'rule_with_diamond'):
+            return 9.0
+        if style in ('bracket_ornament', 'brackets', 'bracket'):
+            return 12.0
+        if style in ('triple_ornament', 'triple'):
+            return 15.0
+        if style == 'frame':
+            return 6.0
+        if style == 'fleuron':
+            return 17.0
+        if style in ('flourish', 'ornamental'):
+            draw_w = min(width * 1.3, tw * 0.42)
+        else:
+            draw_w = min(width * 1.7, tw * 0.6)
+        return max(22.0, min(58.0, draw_w * 0.52)) / 2
+
     def _opener_number_text(self, fmt):
         n = getattr(self, 'chapter_count', 1)
         fmt = str(fmt or 'word').strip().lower()
@@ -640,6 +662,9 @@ class InteriorFeatures:
             y -= num_size * 1.9
 
         if ornament not in ('none', ''):
+            extent = self.ornament_extent(ornament, orn_w)
+            if num_text:
+                y -= max(0.0, extent - 10.0)
             orn_y = y
             self.draw_chapter_ornament(orn_y, cx, ornament, orn_w)
             # Clear the ornament's own height plus the title's ascent so the
