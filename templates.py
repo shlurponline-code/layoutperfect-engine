@@ -104,7 +104,7 @@ TEMPLATES = {
     },
     'poetry': {
         'body_font': 'Gar', 'heading_font': 'GarB',
-        'body_size': 12, 'leading': 18,
+        'body_size': 12, 'leading': 19,
         'chapter_title_size': 22, 'chapter_title_font': 'GarB',
         'chapter_number_style': 'none',
         'chapter_title_position': 'centered_caps_spaced',
