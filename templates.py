@@ -713,6 +713,7 @@ ORN_TEMPLATE_DEFAULTS = {
         'chapter_number_color': '#5C5C70',
         'chapter_ornament': 'flourish',
         'chapter_ornament_name': 'fleur_de_lis',
+        'chapter_ornament_width': 0.30,
         'chapter_ornament_color': '#2B2B33',
         'chapter_title_size': 26,
         'chapter_body_same_page': True,
