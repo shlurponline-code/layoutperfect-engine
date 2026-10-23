@@ -179,6 +179,94 @@ LABELS = {
     'ja': {'chapter': '\u7b2c{n}\u7ae0', 'page': '\u30da\u30fc\u30b8', 'contents': '\u76ee\u6b21', 'bibliography': '\u53c2\u8003\u6587\u732e', 'glossary': '\u7528\u8a9e\u96c6', 'index': '\u7d20\u5f15', 'acknowledgements': '\u8b1d\u8f9e', 'foreword': '\u5e8f\u6587'},
 }
 
+# Front-matter and back-matter copy, rendered in the manuscript's language.
+FRONT_MATTER_TEXTS = {
+    'en': {
+        'published_by': "published by:",
+        'first_published': "First published in {year} by {publisher}.",
+        'rights_reserved': "\u00a9 {year} {author}. All rights reserved.",
+        'rights_paragraph': "No part of this publication may be reproduced, distributed, or transmitted in any form or by any means, including photocopying, recording, or other electronic or mechanical methods, without the prior written permission of the publisher, except in the case of brief quotations embodied in critical reviews and certain other non-commercial uses permitted by copyright law.",
+        'ac_heading': "Discover more from this author",
+        'ac_body': "Every book has a story behind the story. Visit the author's page at AuthorCentral to find out more about the person who wrote the words you've just read. You'll find their complete catalogue of published works, background on how this book came to be written, and ways to get in touch directly. If you enjoyed this book, there may be bonus content waiting for you, including material that didn't make the final cut, maps, reading group discussion points, and recommendations for what to read next.",
+        'ac_scan': "Scan the QR code below or visit authorcentral.net to explore.",
+        'ac_qa': "Spotted something that doesn't look right? We'd love to hear from you. Scan the code below to reach us directly.",
+    },
+    'fr': {
+        'published_by': "publi\u00e9 par\u00a0:",
+        'first_published': "Premi\u00e8re publication en {year} par {publisher}.",
+        'rights_reserved': "\u00a9 {year} {author}. Tous droits r\u00e9serv\u00e9s.",
+        'rights_paragraph': "Aucune partie de cette publication ne peut \u00eatre reproduite, distribu\u00e9e ou transmise sous quelque forme ou par quelque moyen que ce soit, y compris la photocopie, l'enregistrement ou tout autre proc\u00e9d\u00e9 \u00e9lectronique ou m\u00e9canique, sans l'autorisation \u00e9crite pr\u00e9alable de l'\u00e9diteur, sauf dans le cas de br\u00e8ves citations incorpor\u00e9es dans des comptes rendus critiques et de certains autres usages non commerciaux permis par la loi sur le droit d'auteur.",
+        'ac_heading': "D\u00e9couvrez d'autres livres de cet auteur",
+        'ac_body': "Chaque livre a une histoire derri\u00e8re l'histoire. Rendez-vous sur la page AuthorCentral de l'auteur pour en savoir plus sur la personne qui a \u00e9crit ces mots. Vous y trouverez son catalogue complet d'ouvrages publi\u00e9s, des informations sur la gen\u00e8se de ce livre et un moyen de le contacter directement. Si ce livre vous a plu, du contenu bonus vous y attend peut-\u00eatre\u00a0: des documents qui n'ont pas \u00e9t\u00e9 retenus dans la version finale, des cartes, des pistes de discussion pour les clubs de lecture et des recommandations de lecture.",
+        'ac_scan': "Scannez le code QR ci-dessous ou rendez-vous sur authorcentral.net pour explorer.",
+        'ac_qa': "Vous avez rep\u00e9r\u00e9 quelque chose qui ne semble pas correct\u00a0? Nous serions ravis de vous lire. Scannez le code ci-dessous pour nous joindre directement.",
+    },
+    'de': {
+        'published_by': "herausgegeben von:",
+        'first_published': "Erstver\u00f6ffentlicht {year} bei {publisher}.",
+        'rights_reserved': "\u00a9 {year} {author}. Alle Rechte vorbehalten.",
+        'rights_paragraph': "Kein Teil dieser Ver\u00f6ffentlichung darf in irgendeiner Form oder mit irgendeinem Mittel \u2013 einschlie\u00dflich Fotokopie, Aufzeichnung oder anderer elektronischer oder mechanischer Verfahren \u2013 ohne vorherige schriftliche Genehmigung des Verlags reproduziert, verbreitet oder \u00fcbertragen werden, ausgenommen kurze Zitate in kritischen Besprechungen und bestimmte andere, nach dem Urheberrecht zul\u00e4ssige nichtkommerzielle Nutzungen.",
+        'ac_heading': "Mehr von diesem Autor entdecken",
+        'ac_body': "Jedes Buch hat eine Geschichte hinter der Geschichte. Besuchen Sie die AuthorCentral-Seite des Autors, um mehr \u00fcber die Person zu erfahren, die diese Zeilen geschrieben hat. Dort finden Sie den vollst\u00e4ndigen Katalog seiner ver\u00f6ffentlichten Werke, Hintergr\u00fcnde zur Entstehung dieses Buches und M\u00f6glichkeiten, direkt Kontakt aufzunehmen. Wenn Ihnen dieses Buch gefallen hat, warten dort vielleicht Bonusinhalte auf Sie \u2013 Material, das es nicht in die Endfassung geschafft hat, Karten, Diskussionsfragen f\u00fcr Lesekreise und Empfehlungen, was Sie als N\u00e4chstes lesen k\u00f6nnten.",
+        'ac_scan': "Scannen Sie den QR-Code unten oder besuchen Sie authorcentral.net.",
+        'ac_qa': "Ist Ihnen etwas aufgefallen, das nicht stimmt? Wir freuen uns auf Ihre Nachricht. Scannen Sie den Code unten, um uns direkt zu erreichen.",
+    },
+    'it': {
+        'published_by': "pubblicato da:",
+        'first_published': "Prima pubblicazione nel {year} per {publisher}.",
+        'rights_reserved': "\u00a9 {year} {author}. Tutti i diritti riservati.",
+        'rights_paragraph': "Nessuna parte di questa pubblicazione pu\u00f2 essere riprodotta, distribuita o trasmessa in qualsiasi forma o con qualsiasi mezzo, comprese la fotocopiatura, la registrazione o altri metodi elettronici o meccanici, senza la preventiva autorizzazione scritta dell'editore, salvo brevi citazioni inserite in recensioni critiche e altri usi non commerciali consentiti dalla legge sul diritto d'autore.",
+        'ac_heading': "Scopri altri libri di questo autore",
+        'ac_body': "Ogni libro ha una storia dietro la storia. Visita la pagina AuthorCentral dell'autore per scoprire di pi\u00f9 sulla persona che ha scritto queste parole. Troverai il catalogo completo delle sue opere pubblicate, informazioni su come \u00e8 nato questo libro e i modi per contattarlo direttamente. Se questo libro ti \u00e8 piaciuto, potrebbero esserci contenuti bonus che ti aspettano, tra cui materiali esclusi dalla versione finale, mappe, spunti di discussione per i gruppi di lettura e consigli su cosa leggere dopo.",
+        'ac_scan': "Scansiona il codice QR qui sotto o visita authorcentral.net per esplorare.",
+        'ac_qa': "Hai notato qualcosa che non ti sembra corretto? Ci piacerebbe saperlo. Scansiona il codice qui sotto per contattarci direttamente.",
+    },
+    'es': {
+        'published_by': "publicado por:",
+        'first_published': "Primera publicaci\u00f3n en {year} por {publisher}.",
+        'rights_reserved': "\u00a9 {year} {author}. Todos los derechos reservados.",
+        'rights_paragraph': "Ninguna parte de esta publicaci\u00f3n puede reproducirse, distribuirse ni transmitirse de ninguna forma ni por ning\u00fan medio, incluidos la fotocopia, la grabaci\u00f3n u otros m\u00e9todos electr\u00f3nicos o mec\u00e1nicos, sin la autorizaci\u00f3n previa por escrito del editor, salvo en el caso de citas breves incluidas en rese\u00f1as cr\u00edticas y otros usos no comerciales permitidos por la ley de derechos de autor.",
+        'ac_heading': "Descubre m\u00e1s de este autor",
+        'ac_body': "Cada libro tiene una historia detr\u00e1s de la historia. Visita la p\u00e1gina de AuthorCentral del autor para conocer m\u00e1s sobre la persona que escribi\u00f3 estas palabras. Encontrar\u00e1s su cat\u00e1logo completo de obras publicadas, informaci\u00f3n sobre c\u00f3mo surgi\u00f3 este libro y formas de ponerte en contacto directamente. Si este libro te ha gustado, puede que te esperen contenidos extra, como material que no lleg\u00f3 a la versi\u00f3n final, mapas, preguntas para clubes de lectura y recomendaciones de qu\u00e9 leer a continuaci\u00f3n.",
+        'ac_scan': "Escanea el c\u00f3digo QR de abajo o visita authorcentral.net para explorar.",
+        'ac_qa': "\u00bfHas detectado algo que no parece correcto? Nos encantar\u00eda saberlo. Escanea el c\u00f3digo de abajo para contactar con nosotros directamente.",
+    },
+    'nl': {
+        'published_by': "uitgegeven door:",
+        'first_published': "Eerste uitgave in {year} bij {publisher}.",
+        'rights_reserved': "\u00a9 {year} {author}. Alle rechten voorbehouden.",
+        'rights_paragraph': "Niets uit deze uitgave mag worden verveelvoudigd, verspreid of openbaar gemaakt, in welke vorm of op welke wijze dan ook, met inbegrip van fotokopie\u00ebn, opnamen of andere elektronische of mechanische methoden, zonder voorafgaande schriftelijke toestemming van de uitgever, met uitzondering van korte citaten in kritische besprekingen en bepaald ander niet-commercieel gebruik dat de auteursrechtwet toestaat.",
+        'ac_heading': "Ontdek meer van deze auteur",
+        'ac_body': "Elk boek heeft een verhaal achter het verhaal. Bezoek de AuthorCentral-pagina van de auteur om meer te weten te komen over de persoon die deze woorden schreef. Je vindt er de volledige catalogus van gepubliceerde werken, achtergrond over hoe dit boek tot stand kwam en manieren om rechtstreeks contact op te nemen. Als je dit boek mooi vond, wachten er misschien bonusmaterialen op je, waaronder materiaal dat de definitieve versie niet haalde, kaarten, gespreksvragen voor leesclubs en leestips voor je volgende boek.",
+        'ac_scan': "Scan de QR-code hieronder of ga naar authorcentral.net om te ontdekken.",
+        'ac_qa': "Iets gezien dat niet klopt? We horen het graag. Scan de code hieronder om ons direct te bereiken.",
+    },
+    'ja': {
+        'published_by': "\u767a\u884c\uff1a",
+        'first_published': "{year}\u5e74\u3001{publisher}\u3088\u308a\u520a\u884c\u3002",
+        'rights_reserved': "\u00a9 {year} {author}. \u7121\u65ad\u8907\u5199\u30fb\u8ee2\u8f09\u3092\u7981\u3058\u307e\u3059\u3002",
+        'rights_paragraph': "\u672c\u66f8\u306e\u5168\u90e8\u307e\u305f\u306f\u4e00\u90e8\u3092\u3001\u767a\u884c\u5143\u306e\u66f8\u9762\u306b\u3088\u308b\u4e8b\u524d\u306e\u8a31\u8afe\u306a\u304f\u3001\u8907\u5199\u3001\u9332\u97f3\u3001\u305d\u306e\u4ed6\u306e\u96fb\u5b50\u7684\u307e\u305f\u306f\u6a5f\u68b0\u7684\u306a\u65b9\u6cd5\u3092\u542b\u3080\u3044\u304b\u306a\u308b\u5f62\u5f0f\u307e\u305f\u306f\u624b\u6bb5\u306b\u3088\u3063\u3066\u3082\u3001\u8907\u88fd\u3001\u914d\u5e03\u3001\u9001\u4fe1\u3059\u308b\u3053\u3068\u3092\u7981\u3058\u307e\u3059\u3002\u305f\u3060\u3057\u3001\u66f8\u8a55\u306b\u304a\u3051\u308b\u77ed\u3044\u5f15\u7528\u3001\u304a\u3088\u3073\u8457\u4f5c\u6a29\u6cd5\u4e0a\u8a8d\u3081\u3089\u308c\u308b\u975e\u55b6\u5229\u306e\u5229\u7528\u3092\u9664\u304d\u307e\u3059\u3002",
+        'ac_heading': "\u3053\u306e\u8457\u8005\u306e\u4ed6\u306e\u4f5c\u54c1\u3092\u898b\u308b",
+        'ac_body': "\u3059\u3079\u3066\u306e\u672c\u306b\u306f\u3001\u7269\u8a9e\u306e\u80cc\u5f8c\u306b\u3082\u3046\u4e00\u3064\u306e\u7269\u8a9e\u304c\u3042\u308a\u307e\u3059\u3002\u8457\u8005\u306eAuthorCentral\u30da\u30fc\u30b8\u3067\u306f\u3001\u3053\u306e\u6587\u7ae0\u3092\u66f8\u3044\u305f\u4eba\u7269\u306b\u3064\u3044\u3066\u3055\u3089\u306b\u8a73\u3057\u304f\u77e5\u308b\u3053\u3068\u304c\u3067\u304d\u307e\u3059\u3002\u520a\u884c\u3055\u308c\u305f\u4f5c\u54c1\u306e\u5168\u76ee\u9332\u3001\u3053\u306e\u672c\u304c\u751f\u307e\u308c\u305f\u80cc\u666f\u3001\u305d\u3057\u3066\u76f4\u63a5\u9023\u7d61\u3092\u53d6\u308b\u65b9\u6cd5\u304c\u63b2\u8f09\u3055\u308c\u3066\u3044\u307e\u3059\u3002\u3053\u306e\u672c\u3092\u697d\u3057\u3093\u3067\u3044\u305f\u3060\u3051\u305f\u306a\u3089\u3001\u6700\u7d42\u7a3f\u306b\u306f\u53ce\u9332\u3055\u308c\u306a\u304b\u3063\u305f\u8cc7\u6599\u3001\u5730\u56f3\u3001\u8aad\u66f8\u4f1a\u306e\u305f\u3081\u306e\u30c7\u30a3\u30b9\u30ab\u30c3\u30b7\u30e7\u30f3\u30dd\u30a4\u30f3\u30c8\u3001\u6b21\u306b\u8aad\u3080\u3079\u304d\u672c\u306e\u7d39\u4ecb\u306a\u3069\u3001\u7279\u5178\u30b3\u30f3\u30c6\u30f3\u30c4\u304c\u7528\u610f\u3055\u308c\u3066\u3044\u308b\u5834\u5408\u304c\u3042\u308a\u307e\u3059\u3002",
+        'ac_scan': "\u4e0b\u306eQR\u30b3\u30fc\u30c9\u3092\u8aad\u307f\u53d6\u308b\u304b\u3001authorcentral.net \u306b\u30a2\u30af\u30bb\u30b9\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
+        'ac_qa': "\u6c17\u306b\u306a\u308b\u7b87\u6240\u3092\u898b\u3064\u3051\u307e\u3057\u305f\u304b\uff1f\u305c\u3072\u304a\u77e5\u3089\u305b\u304f\u3060\u3055\u3044\u3002\u4e0b\u306e\u30b3\u30fc\u30c9\u3092\u8aad\u307f\u53d6\u308b\u3068\u3001\u76f4\u63a5\u3054\u9023\u7d61\u3044\u305f\u3060\u3051\u307e\u3059\u3002",
+    },
+}
+
+
+def get_front_text(lang, key, **kw):
+    """Return localised front/back-matter copy, filling {placeholders}."""
+    base = _lang_base(lang)
+    texts = FRONT_MATTER_TEXTS.get(base, FRONT_MATTER_TEXTS['en'])
+    text = texts.get(key, FRONT_MATTER_TEXTS['en'].get(key, key))
+    if kw:
+        try:
+            text = text.format(**kw)
+        except (KeyError, IndexError, ValueError):
+            pass
+    return text
+
+
 def is_japanese(lang):
     return lang is not None and lang.startswith('ja')
 
@@ -1003,7 +1091,7 @@ class GenericBookBuilder:
         r._divider(y, 'star'); y -= 35
         r._ctxt(y, self.author, 'GarI', 14, C_DARK); y -= 35
         r._divider(y, 'star'); y -= 50
-        r._ctxt(y, 'published by:', 'Gar', 9, C_DARK); y -= 18
+        r._ctxt(y, get_front_text(self.language, 'published_by'), 'Gar', 9, C_DARK); y -= 18
         r._ctxt(y, self.publisher, 'Gar', 11, C_BODY); y -= 35
         r._ornament(y)
         r._finish_page()
@@ -1015,18 +1103,14 @@ class GenericBookBuilder:
         # Copyright page
         r._new_page(suppress=True)
         y = PAGE_H - 2.0 * inch
-        r._ctxt(y, self.title, 'GarB', 14, C_BODY); y -= 20
-        r._ctxt(y, self.author, 'GarI', 11, C_BROWN); y -= 30
+        r._ctxt(y, self.title, cjk_aware_font(self.title, 'GarB'), 14, C_BODY); y -= 20
+        r._ctxt(y, self.author, cjk_aware_font(self.author, 'GarI'), 11, C_BROWN); y -= 30
         lm = r._lm()
         for line in [
-            f'First published in 2026 by {self.publisher}.',
-            f'\u00a9 2026 {self.author}. All rights reserved.',
+            get_front_text(self.language, 'first_published', year=2026, publisher=self.publisher),
+            get_front_text(self.language, 'rights_reserved', year=2026, author=self.author),
             '',
-            'No part of this publication may be reproduced, distributed, or transmitted '
-            'in any form or by any means, including photocopying, recording, or other '
-            'electronic or mechanical methods, without the prior written permission of '
-            'the publisher, except in the case of brief quotations embodied in critical '
-            'reviews and certain other non-commercial uses permitted by copyright law.',
+            get_front_text(self.language, 'rights_paragraph'),
             '',
             f'{self.publisher_url}',
         ]:
@@ -1139,10 +1223,10 @@ class GenericBookBuilder:
         r._ctxt(y, self.title, 'GarI', 11, C_DARK); y -= 30
         r._divider(y, 'star'); y -= 25
         r._ctxt(y, self.publisher, 'Gar', 10, C_DARK); y -= 18
-        r.c.setFont('Gar', 8.5)
+        _rights = get_front_text(self.language, 'rights_reserved', year=2026, author=self.author)
+        r.c.setFont(cjk_aware_font(_rights, 'Gar'), 8.5)
         r.c.setFillColor(C_GREY)
-        r.c.drawCentredString(r._lm() + r._tw() / 2, y,
-                             f'\u00a9 2026 {self.author}. All rights reserved.')
+        r.c.drawCentredString(r._lm() + r._tw() / 2, y, _rights)
         r._finish_page()
         
         r.c.save()
