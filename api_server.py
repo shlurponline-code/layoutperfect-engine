@@ -91,6 +91,8 @@ class TypesetRequest(BaseModel):
     # breaks, running headers/folios, pull quotes and callouts. Keys are the
     # template-registry keys; omitted keys keep the template's own defaults.
     interior: dict = Field(default_factory=dict)
+    # Back-matter links page (trade, AuthorCentral, BookClub2K, catalogue)
+    back_matter: dict = Field(default_factory=dict)
 
 
 class TypesetResponse(BaseModel):
@@ -450,6 +452,16 @@ def typeset(req: TypesetRequest):
             append_author_central_page(output_path, req.trim_width, req.trim_height, req.author_central_url, req.language)
             # Re-verify font embedding after Author Central page merge
             verify_font_embedding(output_path)
+
+        # Back-matter links page — appended after the interior so it works for
+        # every template. A failure here must never lose the typeset book.
+        try:
+            if req.back_matter and req.back_matter.get('enabled'):
+                from backmatter import append_back_matter
+                append_back_matter(output_path, req.trim_width, req.trim_height, req.back_matter, req.language)
+                verify_font_embedding(output_path)
+        except Exception as back_matter_error:
+            print('Back-matter page skipped: ' + str(back_matter_error))
 
         # Count actual pages from the generated PDF
         from pypdf import PdfReader
