@@ -1,10 +1,10 @@
 """Back-matter links page for Layout Perfect interiors.
 
-Renders the standard D&H back-matter blocks (trade and wholesale enquiries,
-the AuthorCentral book page, the BookClub2K purchase link and the full
-catalogue) as one or more appended pages, with an optional QR code beside
-each URL. The page is appended after the interior is built, so it works for
-every template.
+Renders the D&H back-matter blocks (trade and wholesale enquiries, the
+AuthorCentral book page, the BookClub2K purchase link and the full catalogue)
+as a single centred links page, with a framed URL panel and QR code for each
+block. The page is appended after the interior is built, so it works for every
+template and trim size.
 """
 
 import io
@@ -19,10 +19,11 @@ from pypdf import PdfReader, PdfWriter
 
 FONT_DIR = "/usr/share/fonts/truetype/freefont"
 
-C_BODY = HexColor("#2C2C2C")
-C_DARK = HexColor("#4A4A4A")
-C_RULE = HexColor("#C9C1AE")
-C_GREY = HexColor("#999999")
+C_INK = HexColor("#1F2A38")
+C_BODY = HexColor("#4A4A4A")
+C_MUTED = HexColor("#8A8578")
+C_GOLD = HexColor("#B08D57")
+C_GOLD_SOFT = HexColor("#D8CBB2")
 
 STRINGS = {
     "en": {
@@ -76,7 +77,11 @@ def _language(language):
 
 
 def _register_fonts():
-    for name, filename in (("San", "FreeSans.ttf"), ("SanB", "FreeSansBold.ttf")):
+    for name, filename in (
+        ("San", "FreeSans.ttf"),
+        ("SanB", "FreeSansBold.ttf"),
+        ("SanI", "FreeSansOblique.ttf"),
+    ):
         try:
             pdfmetrics.registerFont(TTFont(name, FONT_DIR + "/" + filename))
         except Exception:
@@ -110,7 +115,7 @@ def _full_url(url):
     return "https://" + text
 
 
-def _wrap(text, size, max_width):
+def _wrap(text, size, max_width, base="San"):
     text = (text or "").strip()
     if not text:
         return []
@@ -118,18 +123,18 @@ def _wrap(text, size, max_width):
     current = ""
     for word in text.split():
         candidate = (current + " " + word).strip()
-        if pdfmetrics.stringWidth(candidate, _font(candidate, "San"), size) <= max_width:
+        if pdfmetrics.stringWidth(candidate, _font(candidate, base), size) <= max_width:
             current = candidate
             continue
         if current:
             lines.append(current)
         current = ""
-        if pdfmetrics.stringWidth(word, _font(word, "San"), size) <= max_width:
+        if pdfmetrics.stringWidth(word, _font(word, base), size) <= max_width:
             current = word
             continue
         for character in word:
             attempt = current + character
-            if pdfmetrics.stringWidth(attempt, _font(attempt, "San"), size) <= max_width:
+            if pdfmetrics.stringWidth(attempt, _font(attempt, base), size) <= max_width:
                 current = attempt
             else:
                 if current:
@@ -153,7 +158,7 @@ def _qr_reader(url):
         )
         qr.add_data(url)
         qr.make(fit=True)
-        image = qr.make_image(fill_color="#2C2C2C", back_color="white")
+        image = qr.make_image(fill_color="#1F2A38", back_color="white")
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")
         buffer.seek(0)
@@ -174,12 +179,51 @@ def build_blocks(cfg, language="en_GB"):
     if cfg.get("show_bookclub") and cfg.get("bookclub_url"):
         blocks.append((strings["bookclub"], cfg.get("bookclub_url")))
     if cfg.get("show_catalogue"):
-        blocks.append((strings["catalogue"], cfg.get("catalogue_url") or "www.dandhpublishing.com/books"))
+        blocks.append((strings["catalogue"], cfg.get("catalogue_url") or "bookclub2k.com/shop"))
     return blocks
+
+
+def _diamond(c, cx, cy, radius, color=None):
+    c.setFillColor(color or C_GOLD)
+    path = c.beginPath()
+    path.moveTo(cx, cy + radius)
+    path.lineTo(cx + radius, cy)
+    path.lineTo(cx, cy - radius)
+    path.lineTo(cx - radius, cy)
+    path.close()
+    c.drawPath(path, stroke=0, fill=1)
+
+
+def _ornament(c, cx, y, half=28):
+    c.setStrokeColor(C_GOLD_SOFT)
+    c.setLineWidth(0.5)
+    c.line(cx - half, y, cx - 5, y)
+    c.line(cx + 5, y, cx + half, y)
+    _diamond(c, cx, y, 2.3)
+
+
+def _tracked_width(text, font, size, track):
+    if not text:
+        return 0.0
+    return pdfmetrics.stringWidth(text, font, size) + track * (len(text) - 1)
+
+
+def _draw_tracked(c, text, font, size, track, color, x, y):
+    c.setFont(font, size)
+    c.setFillColor(color)
+    for character in text:
+        c.drawString(x, y, character)
+        x += pdfmetrics.stringWidth(character, font, size) + track
+
+
+def _draw_tracked_centre(c, text, font, size, track, color, y, center):
+    x = center - _tracked_width(text, font, size, track) / 2.0
+    _draw_tracked(c, text, font, size, track, color, x, y)
 
 
 def append_back_matter(pdf_path, trim_width, trim_height, cfg=None, language="en_GB"):
     """Append the back-matter links page, keeping it on a recto."""
+    cfg = cfg or {}
     blocks = build_blocks(cfg, language)
     if not blocks:
         return None
@@ -188,68 +232,115 @@ def append_back_matter(pdf_path, trim_width, trim_height, cfg=None, language="en
 
     page_w = float(trim_width) * inch
     page_h = float(trim_height) * inch
-    margin = min(1.0 * inch, page_w * 0.16)
+    margin = min(0.95 * inch, page_w * 0.145)
     text_w = page_w - 2 * margin
-    qr_size = (20 * 72 / 25.4) if cfg.get("show_qr") else 0
+    qr_size = (16 * 72 / 25.4) if cfg.get("show_qr") else 0.0
+
+    header_size = 9.2
+    body_size = 8.6
+    leading = body_size + 3.8
+    box_h = max(qr_size + 14, 32.0)
 
     side_path = pdf_path.replace(".pdf", "_backmatter.pdf")
     c = cv.Canvas(side_path, pagesize=(page_w, page_h))
-    bottom_limit = margin + 46
 
-    state = {"y": page_h - margin, "started": False}
+    footer_y = margin * 0.5
+    block_top = page_h - margin - 30
+    floor_y = footer_y + 30
 
-    def new_page():
+    def masthead():
+        brand = "D&H PUBLISHING INTERNATIONAL"
+        _draw_tracked_centre(c, brand, _font(brand, "SanB"), 6.6, 2.6, C_MUTED, page_h - margin, page_w / 2)
+        _ornament(c, page_w / 2, page_h - margin - 10, 40)
+
+    def colophon():
+        c.setStrokeColor(C_GOLD_SOFT)
+        c.setLineWidth(0.5)
+        c.line(page_w / 2 - 34, footer_y + 14, page_w / 2 + 34, footer_y + 14)
+        _diamond(c, page_w / 2, footer_y + 14, 1.8, C_GOLD)
+        imprint = "D&H PUBLISHING INTERNATIONAL LTD"
+        _draw_tracked_centre(c, imprint, _font(imprint, "SanB"), 5.6, 1.7, C_MUTED, footer_y, page_w / 2)
+
+    def link_box(cx, top, url, qr):
+        label = _display_url(url) or ""
+        font = _font(label, "SanB")
+        size = 8.6
+        max_label = min(text_w * 0.62, 170)
+        if pdfmetrics.stringWidth(label, font, size) > max_label:
+            while label and pdfmetrics.stringWidth(label + "...", font, size) > max_label:
+                label = label[:-1]
+            label = label.rstrip() + "..."
+        pad = 8.0
+        gap = 9.0 if qr is not None else 0.0
+        qr_w = qr_size if qr is not None else 0.0
+        label_w = max(pdfmetrics.stringWidth(label, font, size), 34.0)
+        width = pad * 2 + qr_w + gap + label_w
+        width = min(width, text_w)
+        left = cx - width / 2.0
+        bottom = top - box_h
+        c.setStrokeColor(C_GOLD_SOFT)
+        c.setLineWidth(0.5)
+        c.roundRect(left, bottom, width, box_h, 3.0, stroke=1, fill=0)
+        x = left + pad
+        if qr is not None:
+            c.drawImage(qr, x, bottom + (box_h - qr_size) / 2.0, width=qr_size, height=qr_size, mask="auto")
+            x += qr_size + gap
+        cy = bottom + box_h / 2.0
+        caption = "VISIT"
+        _draw_tracked(c, caption, _font(caption, "SanB"), 5.6, 1.5, C_GOLD, x, cy + 2.4)
+        c.setFont(font, size)
+        c.setFillColor(C_INK)
+        c.drawString(x, cy - 8.6, label)
+        return bottom
+
+    measured = []
+    for header, body in [block[0] for block in blocks]:
+        lines = _wrap(body, body_size, text_w * 0.72, "SanI")
+        height = header_size + 8 + len(lines) * leading + 10 + box_h
+        measured.append((height, lines))
+
+    gap = 24.0
+    total = sum(item[0] for item in measured) + gap * (len(blocks) - 1)
+    available = block_top - floor_y
+    slack = available - total
+    start = block_top
+    if slack > 0:
+        gap += min(slack / max(len(blocks), 1), 44)
+        start = block_top - min(slack * 0.3, 76)
+
+    state = {"started": False}
+
+    def start_page():
         if state["started"]:
             c.showPage()
         state["started"] = True
-        state["y"] = page_h - margin
+        masthead()
+        colophon()
 
-    new_page()
+    start_page()
 
-    for block in blocks:
-        header, body = block[0]
-        url = block[1]
+    y = start
+    for index, block in enumerate(blocks):
+        (header, body), url = block[0], block[1]
+        height, lines = measured[index]
         qr = _qr_reader(_full_url(url)) if qr_size else None
-        wrap_w = text_w - (qr_size + 14 if qr_size else 0)
-        body_lines = _wrap(body, 9, wrap_w)
-        needed = 15 + len(body_lines) * 12.4 + (qr_size + 10 if qr_size else 16) + 18
-        if state["y"] - needed < bottom_limit:
-            new_page()
+        if index:
+            if y - height < floor_y:
+                start_page()
+                y = block_top
+            else:
+                _ornament(c, page_w / 2, y + gap / 2.0 - 3, 24)
+                y -= gap
+        _draw_tracked_centre(c, header, _font(header, "SanB"), header_size, 1.5, C_INK, y, page_w / 2)
+        y -= header_size + 6
+        for line in lines:
+            c.setFont(_font(line, "SanI"), body_size)
+            c.setFillColor(C_BODY)
+            c.drawCentredString(page_w / 2, y, line)
+            y -= leading
+        y -= 9
+        y = link_box(page_w / 2, y, url, qr)
 
-        y = state["y"]
-        top = y
-
-        c.setFont(_font(header, "SanB"), 9.5)
-        c.setFillColor(C_BODY)
-        c.drawString(margin, y, header)
-        y -= 15
-
-        for line in body_lines:
-            c.setFont(_font(line, "San"), 9)
-            c.setFillColor(C_DARK)
-            c.drawString(margin, y, line)
-            y -= 12.4
-
-        y -= 4
-        label = _display_url(url)
-        c.setFont(_font(label, "SanB"), 9)
-        c.setFillColor(C_BODY)
-        c.drawString(margin, y, label)
-
-        if qr is not None:
-            c.drawImage(qr, margin + text_w - qr_size, top - qr_size, width=qr_size, height=qr_size, mask="auto")
-            y = min(y - 8, top - qr_size - 8)
-        else:
-            y -= 12
-
-        c.setStrokeColor(C_RULE)
-        c.setLineWidth(0.4)
-        c.line(margin, y, margin + text_w, y)
-        state["y"] = y - 18
-
-    c.setFont("SanB", 7.4)
-    c.setFillColor(C_GREY)
-    c.drawCentredString(page_w / 2, margin * 0.62, "D&H PUBLISHING INTERNATIONAL LTD")
     c.save()
 
     writer = PdfWriter(clone_from=PdfReader(pdf_path))
