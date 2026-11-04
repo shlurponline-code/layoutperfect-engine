@@ -1,7 +1,7 @@
 """Back-matter links page for Layout Perfect interiors.
 
 Renders the D&H back-matter blocks (trade and wholesale enquiries, the
-AuthorCentral book page, the BookClub2K purchase link and the full catalogue)
+AuthorCentral book page, the BookClub2K purchase link, the full catalogue and the media and press contact)
 as a single centred links page, with a framed URL panel and QR code for each
 block. The page is appended after the interior is built, so it works for every
 template and trim size.
@@ -68,6 +68,17 @@ STRINGS = {
         "bookclub": ("\u76f4\u63a5\u8cfc\u5165", "\u51fa\u7248\u793e\u304b\u3089\u76f4\u63a5\u8cfc\u5165\uff1a"),
         "catalogue": ("\u30ab\u30bf\u30ed\u30b0", "\u5168\u30ab\u30bf\u30ed\u30b0\u3092\u898b\u308b\uff1a"),
     },
+}
+
+
+PRESS_STRINGS = {
+    "en": ("MEDIA & PRESS CONTACT", "For review copies, interviews and press enquiries:"),
+    "fr": ("CONTACT PRESSE", "Pour les exemplaires de presse, les interviews et les demandes des medias :"),
+    "de": ("PRESSEKONTAKT", "Fuer Rezensionsexemplare, Interviews und Presseanfragen:"),
+    "it": ("CONTATTI STAMPA", "Per copie stampa, interviste e richieste dei media:"),
+    "es": ("CONTACTO DE PRENSA", "Para ejemplares de prensa, entrevistas y consultas de medios:"),
+    "nl": ("PERS- EN MEDIACONTACT", "Voor recensie-exemplaren, interviews en persvragen:"),
+    "ja": ("\u30d7\u30ec\u30b9\u30fb\u30e1\u30c7\u30a3\u30a2\u304b\u3089\u306e\u304a\u554f\u3044\u5408\u308f\u305b", "\u66f8\u8a55\u7528\u898b\u672c\u3001\u30a4\u30f3\u30bf\u30d3\u30e5\u30fc\u3001\u53d6\u6750\u306e\u3054\u4f9d\u983c\u306f\u3053\u3061\u3089\u307e\u3067\uff1a"),
 }
 
 
@@ -174,6 +185,13 @@ def build_blocks(cfg, language="en_GB"):
     blocks = []
     if cfg.get("show_trade", True):
         blocks.append((strings["trade"], cfg.get("trade_url") or "www.dandhpublishing.com/trade"))
+    if cfg.get("show_press", False):
+        blocks.append(
+            (
+                PRESS_STRINGS[_language(language)],
+                cfg.get("press_url") or "dandhpublishing.com/press",
+            )
+        )
     if cfg.get("show_authorcentral") and cfg.get("authorcentral_url"):
         blocks.append((strings["authorcentral"], cfg.get("authorcentral_url")))
     if cfg.get("show_bookclub") and cfg.get("bookclub_url"):
