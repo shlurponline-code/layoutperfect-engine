@@ -161,12 +161,45 @@ def _acanthus(c, cx, y, w, color, lw):
 
 
 def _fleur_de_lis(c, cx, y, w, color, lw):
-    h = w * 0.34
+    """A classic fleur-de-lis: a pointed centre petal, two side petals curling
+    out and up, a band across the waist and a tapered base below it."""
+    h = w * 0.62
+    top = y + h * 0.50
+    bot = y - h * 0.50
+    band_y = y - h * 0.06
     _fill(c, color)
-    for angle in (-38, 0, 38):
-        _petal(c, cx, y - h * 0.15, w * 0.20, h * 1.15, color, angle)
-    c.rect(cx - w * 0.24, y - h * 0.55, w * 0.48, h * 0.16, fill=1, stroke=0)
-    _dot(c, cx, y + h * 0.62, w * 0.022, color)
+
+    # Centre petal, rising to a point.
+    p = c.beginPath()
+    p.moveTo(cx - w * 0.085, band_y)
+    p.curveTo(cx - w * 0.115, y + h * 0.10, cx - w * 0.055, top - h * 0.12, cx, top)
+    p.curveTo(cx + w * 0.055, top - h * 0.12, cx + w * 0.115, y + h * 0.10, cx + w * 0.085, band_y)
+    p.close()
+    c.drawPath(p, fill=1, stroke=0)
+
+    # Side petals, mirrored, curling outwards.
+    for flip in (-1, 1):
+        p = c.beginPath()
+        p.moveTo(cx + flip * w * 0.06, band_y + h * 0.02)
+        p.curveTo(cx + flip * w * 0.20, y + h * 0.24,
+                  cx + flip * w * 0.40, y + h * 0.26,
+                  cx + flip * w * 0.44, y + h * 0.12)
+        p.curveTo(cx + flip * w * 0.46, y + h * 0.02,
+                  cx + flip * w * 0.34, y - h * 0.10,
+                  cx + flip * w * 0.24, band_y - h * 0.02)
+        p.close()
+        c.drawPath(p, fill=1, stroke=0)
+
+    # Band across the waist.
+    c.rect(cx - w * 0.30, band_y - h * 0.07, w * 0.60, h * 0.13, fill=1, stroke=0)
+
+    # Tapered base.
+    p = c.beginPath()
+    p.moveTo(cx - w * 0.075, band_y - h * 0.07)
+    p.lineTo(cx + w * 0.075, band_y - h * 0.07)
+    p.lineTo(cx, bot)
+    p.close()
+    c.drawPath(p, fill=1, stroke=0)
 
 
 def _vine(c, cx, y, w, color, lw):
