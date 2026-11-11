@@ -702,11 +702,6 @@ def picture_book_thumbnail(req: ArtworkRequest):
         raise HTTPException(status_code=500, detail="Could not preview that file: " + str(e))
 
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
-
-
 # ------------------------------------------------- Illustrated chapter books
 from illustrated_book import assemble_illustrated_book
 
@@ -738,3 +733,7 @@ def illustrated_typeset_route(req: IllustratedRequest):
         return assemble_illustrated_book(payload)
     except Exception as e:
         raise HTTPException(status_code=500, detail="Illustrated typeset failed: " + str(e))
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
