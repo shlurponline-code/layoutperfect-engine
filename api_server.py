@@ -5,9 +5,9 @@ FastAPI wrapper around the typesetting engine.
 Deploy on Railway, Render, or Fly.io.
 
 Endpoints:
-  POST /typeset     Ã¢ÂÂ takes manuscript + config, returns PDF + page count
-  POST /epub        Ã¢ÂÂ takes manuscript + config, returns ePub file
-  GET  /health      Ã¢ÂÂ health check
+  POST /typeset     ÃÂ¢ÃÂÃÂ takes manuscript + config, returns PDF + page count
+  POST /epub        ÃÂ¢ÃÂÃÂ takes manuscript + config, returns ePub file
+  GET  /health      ÃÂ¢ÃÂÃÂ health check
 """
 
 import os
@@ -26,7 +26,7 @@ app = FastAPI(
     description="Manuscript to print-ready PDF engine"
 )
 
-# CORS Ã¢ÂÂ allow Base44 to call this
+# CORS ÃÂ¢ÃÂÃÂ allow Base44 to call this
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Lock down to layoutperfect.com and base44.com in production
@@ -34,7 +34,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Auth Ã¢ÂÂ simple API key for now
+# Auth ÃÂ¢ÃÂÃÂ simple API key for now
 API_KEY = os.environ.get("LP_API_KEY", "lp-dev-key-change-me")
 
 
@@ -43,7 +43,7 @@ def check_auth(api_key: str):
         raise HTTPException(status_code=401, detail="Invalid API key")
 
 
-# Ã¢ÂÂÃ¢ÂÂ Request/Response models Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Request/Response models ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 
 class TypesetRequest(BaseModel):
     api_key: str
@@ -121,7 +121,7 @@ class EpubRequest(BaseModel):
     language: str = "en-GB"
 
 
-# Ã¢ÂÂÃ¢ÂÂ Endpoints Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Endpoints ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 
 @app.get("/health")
 def health():
@@ -360,7 +360,7 @@ def typeset(req: TypesetRequest):
         # Import the engine
         from typeset_engine import BookBuilder, GenericBookBuilder, PAGE_W, PAGE_H, get_toc_title
 
-        # KDP gutter requirement varies by page count — estimate pages
+        # KDP gutter requirement varies by page count â estimate pages
         # from word count and ensure the inside margin meets the minimum.
         word_count = len(req.manuscript.split())
         est_pages = max(24, int(word_count / 280))
@@ -453,7 +453,7 @@ def typeset(req: TypesetRequest):
             # Re-verify font embedding after Author Central page merge
             verify_font_embedding(output_path)
 
-        # Back-matter links page — appended after the interior so it works for
+        # Back-matter links page â appended after the interior so it works for
         # every template. A failure here must never lose the typeset book.
         try:
             if req.back_matter and req.back_matter.get('enabled'):
@@ -576,7 +576,7 @@ def word_count(req: dict):
 
     words = len(text.split())
     chapters = text.count("\n## ") + text.count("\n# ")
-    profiles = text.count("\nÃ¢ÂÂ¢ Ã¢ÂÂ¢ Ã¢ÂÂ¢")
+    profiles = text.count("\nÃÂ¢ÃÂÃÂ¢ ÃÂ¢ÃÂÃÂ¢ ÃÂ¢ÃÂÃÂ¢")
 
     return {
         "word_count": words,
@@ -705,3 +705,36 @@ def picture_book_thumbnail(req: ArtworkRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
+
+
+# ------------------------------------------------- Illustrated chapter books
+from illustrated_book import assemble_illustrated_book
+
+
+class IllustratedRequest(BaseModel):
+    api_key: str
+    title: str = Field(default="Untitled")
+    subtitle: str = Field(default="")
+    author: str = Field(default="")
+    illustrator: str = Field(default="")
+    publisher: str = Field(default="D&H Publishing International")
+    isbn: str = Field(default="")
+    trim_width: float = Field(default=5.5)
+    trim_height: float = Field(default=8.5)
+    paper_type: str = Field(default="white")
+    body_size_pt: float = Field(default=11.5)
+    leading_pt: float = Field(default=16.5)
+    front_matter: dict = Field(default_factory=dict)
+    chapters: list = Field(default_factory=list)
+    artwork: dict = Field(default_factory=dict)
+
+
+@app.post("/illustrated/typeset")
+def illustrated_typeset_route(req: IllustratedRequest):
+    """Illustrated chapter book interior, from a parsed script plan."""
+    check_auth(req.api_key)
+    payload = req.model_dump() if hasattr(req, "model_dump") else req.dict()
+    try:
+        return assemble_illustrated_book(payload)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Illustrated typeset failed: " + str(e))
