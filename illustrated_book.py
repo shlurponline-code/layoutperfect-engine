@@ -266,7 +266,7 @@ class Doc(BaseDocTemplate):
 
 def _decorate(canvas, doc):
     page = doc.page
-    marks = doc.page_marks.get(page, 'front')
+    marks = doc.page_marks.get(page, 'body')
     if marks in ('front', 'plate', 'blank'):
         return
     canvas.saveState()
