@@ -13,6 +13,7 @@ with its brief, so a proof can be reviewed before the illustrator delivers.
 import base64
 import io
 import os
+import re
 import urllib.request
 
 from reportlab.lib.colors import HexColor
@@ -81,6 +82,14 @@ def _centred_block(canvas, lines, font, size, leading, cx, top):
 def _esc(text):
     return (str(text or '').replace('&', '&amp;')
             .replace('<', '&lt;').replace('>', '&gt;'))
+
+
+def _md(raw):
+    """Escape for ReportLab, then honour the manuscript's *italic* / **bold**."""
+    text = _esc(raw).strip()
+    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    text = re.sub(r'(?<!\*)\*([^*]+?)\*(?!\*)', r'<i>\1</i>', text)
+    return text
 
 
 def _ornament(canvas, cx, y, width=86):
@@ -389,7 +398,7 @@ def _story(doc, payload, toc_pages):
     size = float(payload.get('body_size_pt') or 11.5)
     leading = float(payload.get('leading_pt') or 16.5)
     body = ParagraphStyle('body', fontName=FONT, fontSize=size, leading=leading,
-                          textColor=C_BODY, alignment=4, spaceAfter=0)
+                          textColor=C_BODY, alignment=0, spaceAfter=0)
     flush = body.clone('body-flush', firstLineIndent=0)
     indented = body.clone('body-indent', firstLineIndent=14)
     centred = ParagraphStyle('centred', parent=body, alignment=1)
@@ -443,7 +452,7 @@ def _story(doc, payload, toc_pages):
                 story.append(SceneBreak(doc))
                 paragraphs = 0
             else:
-                text = _esc(segment.get('text') or '').strip()
+                text = _md(segment.get('text') or '')
                 if not text:
                     continue
                 story.append(Paragraph(text, flush if paragraphs == 0 else indented))
