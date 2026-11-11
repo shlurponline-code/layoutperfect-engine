@@ -313,6 +313,10 @@ def _title_page(canvas, width, height, payload):
     if subtitle:
         y = _centred_block(canvas, _wrap(subtitle, FONT_I, 14, width - 30),
                            FONT_I, 14, 19, width / 2.0, y - 10)
+    tagline = front.get('tagline') or ''
+    if tagline:
+        y = _centred_block(canvas, _wrap(tagline, FONT_I, 10.5, width - 40),
+                           FONT_I, 10.5, 14, width / 2.0, y - 12)
     _ornament(canvas, width / 2.0, y - 16, 110)
     author = payload.get('author') or ''
     if author:
@@ -402,17 +406,16 @@ def _story(doc, payload, toc_pages):
         story.append(Art(doc, frontispiece.get('slot'), 'frontispiece',
                          frontispiece.get('description') or '',
                          artwork.get(frontispiece.get('slot')) or ''))
-    else:
-        story.append(BlankPage(doc))
-    story.append(PageBreak())
+        story.append(PageBreak())
 
     story.append(FrontPage(doc, lambda c, w, h: _title_page(c, w, h, payload)))
     story.append(PageBreak())
     story.append(FrontPage(doc, lambda c, w, h: _copyright(c, w, h, payload)))
     story.append(PageBreak())
-    story.append(FrontPage(doc, lambda c, w, h: _dedication(
-        c, w, h, front.get('dedication') or '')))
-    story.append(PageBreak())
+    if front.get('dedication'):
+        story.append(FrontPage(doc, lambda c, w, h: _dedication(
+            c, w, h, front.get('dedication') or '')))
+        story.append(PageBreak())
 
     entries = [(chapter.get('label') or 'CHAPTER', chapter.get('title') or '',
                 (toc_pages or {}).get(index))
