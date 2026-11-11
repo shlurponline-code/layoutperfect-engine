@@ -492,9 +492,8 @@ def assemble_illustrated_book(payload):
     payload = payload or {}
     trim_width = float(payload.get('trim_width') or 5.5)
     trim_height = float(payload.get('trim_height') or 8.5)
-    _render(payload, trim_width, trim_height, {})
-    pdf_bytes, _, page_count = _render(payload, trim_width, trim_height,
-                                       _render(payload, trim_width, trim_height, {})[1])
+    _, chapter_pages, _ = _render(payload, trim_width, trim_height, {})
+    pdf_bytes, _, page_count = _render(payload, trim_width, trim_height, chapter_pages)
     spine = page_count * float(payload.get('spine_per_page') or 0.002252)
     words = sum(len((segment.get('text') or '').split())
                 for chapter in (payload.get('chapters') or [])
