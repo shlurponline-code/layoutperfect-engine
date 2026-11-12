@@ -292,7 +292,11 @@ class Art(Flowable):
         canvas.setLineWidth(0.8)
         canvas.roundRect(left, top, width, height, 6, stroke=1, fill=1)
         canvas.setDash()
-        label = 'FULL-PAGE ILLUSTRATION' if self.kind in PLATE_KINDS else (self.kind.upper() + ' ILLUSTRATION')
+        words = self.doc.words
+        if self.kind in PLATE_KINDS:
+            label = words.get('plate') or 'FULL-PAGE ILLUSTRATION'
+        else:
+            label = words.get(self.kind) or (self.kind.upper() + ' ILLUSTRATION')
         canvas.setFillColor(C_MUTED)
         canvas.setFont(FONT, 7.6)
         canvas.drawCentredString(box_w / 2.0, top + height - 20, label)
@@ -303,7 +307,8 @@ class Art(Flowable):
         _centred_block(canvas, lines, FONT_I, 8.6, 11.4, box_w / 2.0, y)
         canvas.setFillColor(C_MUTED)
         canvas.setFont(FONT, 7.4)
-        canvas.drawCentredString(box_w / 2.0, top + 16, 'artwork to follow')
+        canvas.drawCentredString(box_w / 2.0, top + 16,
+                                self.doc.words.get('following') or 'artwork to follow')
         canvas.restoreState()
 
 class Opener(Flowable):
@@ -366,6 +371,7 @@ class Doc(BaseDocTemplate):
         self.page_marks = {}
         self.chapter_pages = {}
         self.book_title = ''
+        self.words = {}
         self.arts = []
         self.held = []
         frame = Frame(self.leftMargin, self.bottomMargin,
@@ -492,10 +498,10 @@ def _dedication(canvas, width, height, text):
                    FONT_I, 12, 17, width / 2.0, height * 0.56)
 
 
-def _contents(canvas, width, height, entries):
+def _contents(canvas, width, height, entries, heading='Contents'):
     canvas.setFillColor(C_BODY)
     canvas.setFont(FONT_B, 16)
-    canvas.drawCentredString(width / 2.0, height - 30, 'Contents')
+    canvas.drawCentredString(width / 2.0, height - 30, heading)
     _ornament(canvas, width / 2.0, height - 50, 90)
     y = height - 90
     for label, title, page in entries:
@@ -521,6 +527,7 @@ def _story(doc, payload, toc_pages):
     artwork = payload.get('artwork') or {}
     chapters = payload.get('chapters') or []
     doc.book_title = payload.get('title') or ''
+    doc.words = payload.get('words') or {}
 
     size = float(payload.get('body_size_pt') or 11.5)
     leading = float(payload.get('leading_pt') or 16.5)
@@ -556,7 +563,8 @@ def _story(doc, payload, toc_pages):
     entries = [(chapter.get('label') or 'CHAPTER', chapter.get('title') or '',
                 (toc_pages or {}).get(index))
                for index, chapter in enumerate(chapters)]
-    story.append(FrontPage(doc, lambda c, w, h: _contents(c, w, h, entries)))
+    story.append(FrontPage(doc, lambda c, w, h: _contents(
+        c, w, h, entries, doc.words.get('contents') or 'Contents')))
 
     for index, chapter in enumerate(chapters):
         story.append(PageBreak())
@@ -585,13 +593,13 @@ def _story(doc, payload, toc_pages):
                 paragraphs += 1
 
     story.append(Spacer(1, 26))
-    story.append(Paragraph(' '.join((front.get('end_text') or 'THE END').upper()), caps))
+    story.append(Paragraph(' '.join((front.get('end_text') or doc.words.get('end') or 'THE END').upper()), caps))
 
     following = front.get('next') or {}
     if following.get('title'):
         story.append(PageBreak())
         story.append(Spacer(1, doc.height * 0.22))
-        story.append(Paragraph(' '.join((front.get('teaser_intro') or 'Will return in').upper()), caps))
+        story.append(Paragraph(' '.join((front.get('teaser_intro') or doc.words.get('teaser') or 'Will return in').upper()), caps))
         story.append(Spacer(1, 18))
         story.append(Paragraph(_esc(following.get('title')),
                                centred.clone('teaser-title', fontName=FONT_B,
