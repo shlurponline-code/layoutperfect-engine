@@ -722,6 +722,8 @@ class IllustratedRequest(BaseModel):
     front_matter: dict = Field(default_factory=dict)
     chapters: list = Field(default_factory=list)
     artwork: dict = Field(default_factory=dict)
+    language: str = Field(default="en_GB")
+    back_matter: dict = Field(default_factory=dict)
 
 
 @app.post("/illustrated/typeset")
