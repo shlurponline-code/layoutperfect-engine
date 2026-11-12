@@ -245,14 +245,12 @@ class Art(Flowable):
             box_w = text_w
             box_h = min(text_w / aspect, text_h * HALF_MAX_HEIGHT)
         page_w, page_h = self.doc.pagesize
-        page_aspect = float(page_w) / float(page_h)
-        # A plate whose artwork already has the page's shape prints to the page
-        # edge; anything shaped differently keeps its whole picture, fitted in
-        # the text block, so nothing is cropped away.
-        self.bleed = (bool(self.pixels) and self.kind in PLATE_KINDS
-                      and abs(aspect - page_aspect) / page_aspect <= 0.08)
+        # A plate is a full page: its artwork covers the whole sheet and the
+        # overflow past the edge is trimmed. Everything else keeps its whole
+        # picture, fitted inside the text block.
+        self.bleed = bool(self.pixels) and self.kind in PLATE_KINDS
         if self.bleed:
-            if page_w / aspect <= page_h:
+            if page_w / page_h > aspect:
                 printed_w, printed_h = page_w, page_w / aspect
             else:
                 printed_w, printed_h = page_h * aspect, page_h
