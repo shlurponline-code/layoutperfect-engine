@@ -14,7 +14,10 @@ import base64
 import io
 import os
 import re
+import tempfile
 import urllib.request
+
+from pypdf import PdfReader
 
 from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import inch
@@ -659,6 +662,31 @@ def assemble_illustrated_book(payload):
     trim_height = float(payload.get('trim_height') or 8.5)
     _, chapter_pages, _, _ = _render(payload, trim_width, trim_height, {})
     pdf_bytes, _, page_count, doc = _render(payload, trim_width, trim_height, chapter_pages)
+
+    # The final page: the ISBN barcode and the trade / buy-direct links, when the
+    # project asks for them. Added after the interior so it lands on a recto.
+    back_matter = payload.get('back_matter') or {}
+    if back_matter.get('enabled'):
+        try:
+            from backmatter import append_back_matter
+            cfg = dict(back_matter)
+            if not cfg.get('isbn'):
+                cfg['isbn'] = payload.get('isbn') or ''
+            handle, temp_path = tempfile.mkstemp(suffix='.pdf')
+            os.close(handle)
+            with open(temp_path, 'wb') as out:
+                out.write(pdf_bytes)
+            try:
+                append_back_matter(temp_path, trim_width, trim_height, cfg,
+                                   payload.get('language') or 'en_GB')
+                with open(temp_path, 'rb') as back_in:
+                    pdf_bytes = back_in.read()
+                page_count = len(PdfReader(io.BytesIO(pdf_bytes)).pages)
+            finally:
+                os.remove(temp_path)
+        except Exception as back_matter_error:
+            print('Back-matter page skipped: ' + str(back_matter_error))
+
     spine = page_count * float(payload.get('spine_per_page') or 0.002252)
     words = sum(len((segment.get('text') or '').split())
                 for chapter in (payload.get('chapters') or [])
