@@ -197,7 +197,10 @@ class Art(Flowable):
         else:
             box_w = text_w
             box_h = min(text_w / aspect, text_h * HALF_MAX_HEIGHT)
-        if box_w / aspect <= box_h:
+        if self.pixels is None and self.kind in PLATE_KINDS:
+            # no artwork yet: the plate proof shows the whole page it will fill
+            printed_w, printed_h = box_w, box_h
+        elif box_w / aspect <= box_h:
             printed_w, printed_h = box_w, box_w / aspect
         else:
             printed_w, printed_h = box_h * aspect, box_h
