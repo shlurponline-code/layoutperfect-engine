@@ -51,7 +51,16 @@ except Exception:
 
 FONT, FONT_B, FONT_I = 'Gar', 'GarB', 'GarI'
 
-KIND_RATIO = {'frontispiece': 1.0, 'full': 0.94, 'half': 0.52, 'spot': 0.30}
+# A picture's printed size is set by its placement alone, never by the space
+# left on a page. The fractions are of the text block.
+PLATE_KINDS = ('frontispiece', 'full')
+ART_KINDS = ('frontispiece', 'full', 'half', 'spot')
+HALF_MAX_HEIGHT = 0.55
+SPOT_WIDTH = 0.60
+PLACEHOLDER_ASPECT = 4.0 / 3.0
+MIN_DPI = 300.0
+REPORT_PLACEMENT = {'frontispiece': 'frontispiece', 'full': 'full_page',
+                    'half': 'half_page', 'spot': 'spot'}
 
 
 # --------------------------------------------------------------------- helpers
@@ -149,61 +158,103 @@ class FrontPage(Flowable):
 
 
 class Art(Flowable):
-    """An illustration, or a measured placeholder when the art is still to come."""
+    """An illustration at the fixed printed size its placement sets.
+
+    A picture is never shrunk to fit what is left of a page. When it does not
+    fit, the text that follows fills the rest of this page and the picture is
+    carried to the top of the next one.
+    """
 
     def __init__(self, doc, slot, kind, description, url):
         Flowable.__init__(self)
         self.doc = doc
         self.slot = slot
-        self.kind = kind if kind in KIND_RATIO else 'half'
+        self.kind = kind if kind in ART_KINDS else 'half'
         self.description = description or ''
         self.url = url
+        self.pixels = None
+        self.dpi = 0.0
+        self._measure()
+        doc.arts.append(self)
+
+    def _measure(self):
+        image = _image(self.url)
+        aspect = PLACEHOLDER_ASPECT
+        if image:
+            try:
+                pixel_w, pixel_h = image.getSize()
+                if pixel_w and pixel_h:
+                    aspect = float(pixel_w) / float(pixel_h)
+                    self.pixels = (int(pixel_w), int(pixel_h))
+            except Exception:
+                pass
+        text_w, text_h = self.doc.width, self.doc.height
+        if self.kind in PLATE_KINDS:
+            box_w, box_h = text_w, text_h
+        elif self.kind == 'spot':
+            box_w = text_w * SPOT_WIDTH
+            box_h = min(box_w / aspect, text_h)
+        else:
+            box_w = text_w
+            box_h = min(text_w / aspect, text_h * HALF_MAX_HEIGHT)
+        if box_w / aspect <= box_h:
+            printed_w, printed_h = box_w, box_w / aspect
+        else:
+            printed_w, printed_h = box_h * aspect, box_h
+        self.printed_width = printed_w
+        self.printed_height = printed_h
+        self.width = text_w
+        # a plate owns the page it sits on; everything else is exactly as tall
+        # as the picture prints
+        self.height = text_h if self.kind in PLATE_KINDS else printed_h
+        if self.pixels and printed_w:
+            self.dpi = self.pixels[0] / (printed_w / inch)
 
     def wrap(self, avail_width, avail_height):
-        self.width = avail_width
-        self.height = max(40.0, (avail_height - 2) * KIND_RATIO.get(self.kind, 0.5))
         return self.width, self.height
 
     def draw(self):
-        canvas = self.canv
-        if self.kind in ('frontispiece', 'full'):
-            self.doc.page_marks[canvas.getPageNumber()] = 'plate'
+        if self.kind in PLATE_KINDS:
+            self.doc.page_marks[self.canv.getPageNumber()] = 'plate'
+        self.paint(self.canv, self.width, self.height)
+
+    def paint(self, canvas, box_w, box_h):
         image = _image(self.url)
         if image:
             try:
-                img_w, img_h = image.getSize()
-                scale = min(self.width / float(img_w), self.height / float(img_h))
-                draw_w, draw_h = img_w * scale, img_h * scale
-                canvas.drawImage(image, (self.width - draw_w) / 2.0,
-                                 (self.height - draw_h) / 2.0,
-                                 width=draw_w, height=draw_h, mask='auto')
+                left = (box_w - self.printed_width) / 2.0
+                top = (box_h - self.printed_height) / 2.0
+                canvas.drawImage(image, left, top, width=self.printed_width,
+                                 height=self.printed_height, mask='auto')
                 return
             except Exception as error:
                 print('[illustrated] artwork failed to draw: ' + str(error))
-        self._placeholder(canvas)
+        self._placeholder(canvas, box_w, box_h)
 
-    def _placeholder(self, canvas):
+    def _placeholder(self, canvas, box_w, box_h):
+        left = (box_w - self.printed_width) / 2.0
+        top = (box_h - self.printed_height) / 2.0
+        width, height = self.printed_width, self.printed_height
         canvas.saveState()
         canvas.setFillColor(C_BOX)
         canvas.setStrokeColor(C_BOX_LINE)
         canvas.setDash(3, 3)
         canvas.setLineWidth(0.8)
-        canvas.roundRect(0, 0, self.width, self.height, 6, stroke=1, fill=1)
+        canvas.roundRect(left, top, width, height, 6, stroke=1, fill=1)
         canvas.setDash()
-        label = 'FULL-PAGE ILLUSTRATION' if self.kind == 'full' else (self.kind.upper() + ' ILLUSTRATION')
+        label = 'FULL-PAGE ILLUSTRATION' if self.kind in PLATE_KINDS else (self.kind.upper() + ' ILLUSTRATION')
         canvas.setFillColor(C_MUTED)
         canvas.setFont(FONT, 7.6)
-        canvas.drawCentredString(self.width / 2.0, self.height - 20, label)
-        lines = _wrap(self.description, FONT_I, 8.6, self.width - 56)[:14]
+        canvas.drawCentredString(box_w / 2.0, top + height - 20, label)
+        lines = _wrap(self.description, FONT_I, 8.6, max(60.0, width - 56))[:14]
         block_h = len(lines) * 11.4
-        top = self.height / 2.0 + block_h / 2.0 - 6
+        y = top + height / 2.0 + block_h / 2.0 - 6
         canvas.setFillColor(C_BODY)
-        _centred_block(canvas, lines, FONT_I, 8.6, 11.4, self.width / 2.0, top)
+        _centred_block(canvas, lines, FONT_I, 8.6, 11.4, box_w / 2.0, y)
         canvas.setFillColor(C_MUTED)
         canvas.setFont(FONT, 7.4)
-        canvas.drawCentredString(self.width / 2.0, 16, 'artwork to follow')
+        canvas.drawCentredString(box_w / 2.0, top + 16, 'artwork to follow')
         canvas.restoreState()
-
 
 class Opener(Flowable):
     """Chapter opener: label, ornament and chapter title, on a fresh page."""
@@ -265,12 +316,38 @@ class Doc(BaseDocTemplate):
         self.page_marks = {}
         self.chapter_pages = {}
         self.book_title = ''
+        self.arts = []
+        self.held = []
         frame = Frame(self.leftMargin, self.bottomMargin,
                       self.width, self.height, id='body',
                       leftPadding=0, rightPadding=0,
                       topPadding=0, bottomPadding=0)
         self.addPageTemplates([PageTemplate(id='page', frames=[frame],
                                             onPageEnd=_decorate)])
+
+    def handle_flowable(self, flowables):
+        page_before = self.page
+        pending = flowables[0] if flowables else None
+        if isinstance(pending, Art) and not self.frame._atTop:
+            room = self.frame._y - self.frame._y1
+            if pending.height > room + 0.5:
+                # No room left: the picture keeps its printed size and the text
+                # that follows it fills the rest of this page.
+                flowables.pop(0)
+                self.held.append(pending)
+                return
+        BaseDocTemplate.handle_flowable(self, flowables)
+        if self.held and self.page != page_before:
+            self._place_held(flowables, isinstance(pending, PageBreak))
+
+    def _place_held(self, flowables, chapter_break):
+        held = self.held
+        self.held = []
+        block = list(held)
+        # text carries on under a picture, but a plate needs the page to itself
+        if chapter_break or any(art.kind in PLATE_KINDS for art in held):
+            block.append(PageBreak())
+        flowables[0:0] = block
 
 
 def _decorate(canvas, doc):
@@ -441,8 +518,6 @@ def _story(doc, payload, toc_pages):
             if kind == 'art':
                 slot = segment.get('slot') or ''
                 art_kind = segment.get('kind') or 'half'
-                if art_kind in ('full', 'frontispiece'):
-                    story.append(CondPageBreak(doc.height * 0.9))
                 story.append(Art(doc, slot, art_kind,
                                  segment.get('description') or '',
                                  artwork.get(slot) or ''))
@@ -496,7 +571,38 @@ def _render(payload, trim_width, trim_height, toc_pages):
     buffer = io.BytesIO()
     doc = Doc(buffer, trim_width, trim_height, 0.75 * inch, 0.72 * inch, 0.88 * inch)
     doc.build(_story(doc, payload, toc_pages))
-    return buffer.getvalue(), dict(doc.chapter_pages), doc.page
+    return buffer.getvalue(), dict(doc.chapter_pages), doc.page, doc
+
+
+def _image_report(doc):
+    """Every picture, its placement, printed width and printed resolution."""
+    rows = []
+    for art in doc.arts:
+        row = {
+            'slot': art.slot,
+            'placement': REPORT_PLACEMENT.get(art.kind, art.kind),
+            'width_inches': round(art.printed_width / inch, 2),
+            'height_inches': round(art.printed_height / inch, 2),
+            'pixels': ('%d x %d' % art.pixels) if art.pixels else '',
+            'dpi': int(round(art.dpi)) if art.dpi else 0,
+            'flags': [],
+        }
+        if not art.pixels:
+            row['flags'].append('Artwork to follow: no image supplied yet.')
+        else:
+            if art.dpi and art.dpi < MIN_DPI:
+                row['flags'].append('Below %d DPI at its printed size (%d DPI).'
+                                    % (int(MIN_DPI), row['dpi']))
+            if art.kind == 'half' and art.printed_width < art.doc.width - 0.5:
+                row['flags'].append('Printed %.2f in wide, under the full text width its placement allows (%.2f in).'
+                                    % (row['width_inches'], art.doc.width / inch))
+            elif art.kind == 'spot':
+                minimum = art.doc.width * SPOT_WIDTH
+                if art.printed_width < minimum - 0.5:
+                    row['flags'].append('Printed %.2f in wide, under the 60%% of the text width its placement allows (%.2f in).'
+                                        % (row['width_inches'], minimum / inch))
+        rows.append(row)
+    return rows
 
 
 def assemble_illustrated_book(payload):
@@ -504,8 +610,8 @@ def assemble_illustrated_book(payload):
     payload = payload or {}
     trim_width = float(payload.get('trim_width') or 5.5)
     trim_height = float(payload.get('trim_height') or 8.5)
-    _, chapter_pages, _ = _render(payload, trim_width, trim_height, {})
-    pdf_bytes, _, page_count = _render(payload, trim_width, trim_height, chapter_pages)
+    _, chapter_pages, _, _ = _render(payload, trim_width, trim_height, {})
+    pdf_bytes, _, page_count, doc = _render(payload, trim_width, trim_height, chapter_pages)
     spine = page_count * float(payload.get('spine_per_page') or 0.002252)
     words = sum(len((segment.get('text') or '').split())
                 for chapter in (payload.get('chapters') or [])
@@ -519,6 +625,7 @@ def assemble_illustrated_book(payload):
         'word_count': words,
         'filename': filename,
         'pdf_base64': base64.b64encode(pdf_bytes).decode('utf-8'),
+        'image_report': _image_report(doc),
         'message': 'Illustrated interior built: %d pages at %s x %s inches'
                    % (page_count, trim_width, trim_height),
     }
