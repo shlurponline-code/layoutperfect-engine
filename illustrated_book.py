@@ -244,7 +244,19 @@ class Art(Flowable):
         else:
             box_w = text_w
             box_h = min(text_w / aspect, text_h * HALF_MAX_HEIGHT)
-        if self.pixels is None and self.kind in PLATE_KINDS:
+        page_w, page_h = self.doc.pagesize
+        page_aspect = float(page_w) / float(page_h)
+        # A plate whose artwork already has the page's shape prints to the page
+        # edge; anything shaped differently keeps its whole picture, fitted in
+        # the text block, so nothing is cropped away.
+        self.bleed = (bool(self.pixels) and self.kind in PLATE_KINDS
+                      and abs(aspect - page_aspect) / page_aspect <= 0.08)
+        if self.bleed:
+            if page_w / aspect <= page_h:
+                printed_w, printed_h = page_w, page_w / aspect
+            else:
+                printed_w, printed_h = page_h * aspect, page_h
+        elif self.pixels is None and self.kind in PLATE_KINDS:
             # no artwork yet: the plate proof shows the whole page it will fill
             printed_w, printed_h = box_w, box_h
         elif box_w / aspect <= box_h:
@@ -272,6 +284,16 @@ class Art(Flowable):
         image = _print_image(self.url, self.printed_width, self.printed_height)
         if image:
             try:
+                if getattr(self, 'bleed', False):
+                    page_w, page_h = self.doc.pagesize
+                    canvas.saveState()
+                    canvas.translate(-self.doc.leftMargin, -self.doc.bottomMargin)
+                    canvas.drawImage(image, (page_w - self.printed_width) / 2.0,
+                                     (page_h - self.printed_height) / 2.0,
+                                     width=self.printed_width,
+                                     height=self.printed_height, mask='auto')
+                    canvas.restoreState()
+                    return
                 left = (box_w - self.printed_width) / 2.0
                 top = (box_h - self.printed_height) / 2.0
                 canvas.drawImage(image, left, top, width=self.printed_width,
