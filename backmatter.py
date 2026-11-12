@@ -17,6 +17,8 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas as cv
 from pypdf import PdfReader, PdfWriter
 
+from isbn_barcode import draw_barcode, isbn13
+
 FONT_DIR = "/usr/share/fonts/truetype/freefont"
 
 C_INK = HexColor("#1F2A38")
@@ -243,7 +245,8 @@ def append_back_matter(pdf_path, trim_width, trim_height, cfg=None, language="en
     """Append the back-matter links page, keeping it on a recto."""
     cfg = cfg or {}
     blocks = build_blocks(cfg, language)
-    if not blocks:
+    barcode = isbn13(cfg.get("isbn")) if cfg.get("show_barcode", True) else ""
+    if not blocks and not barcode:
         return None
 
     _register_fonts()
@@ -264,7 +267,10 @@ def append_back_matter(pdf_path, trim_width, trim_height, cfg=None, language="en
 
     footer_y = margin * 0.5
     block_top = page_h - margin - 30
-    floor_y = footer_y + 30
+    barcode_w = min(text_w * 0.86, 3.05 * inch)
+    barcode_h = 0.56 * inch
+    barcode_base = footer_y + 30
+    floor_y = footer_y + 30 + ((barcode_h + 32) if barcode else 0)
 
     def masthead():
         brand = "D&H PUBLISHING INTERNATIONAL"
@@ -334,6 +340,8 @@ def append_back_matter(pdf_path, trim_width, trim_height, cfg=None, language="en
         state["started"] = True
         masthead()
         colophon()
+        if barcode:
+            draw_barcode(c, barcode, page_w / 2.0, barcode_base, barcode_w, barcode_h)
 
     start_page()
 
