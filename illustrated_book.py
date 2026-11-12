@@ -117,6 +117,9 @@ def _ornament(canvas, cx, y, width=86):
 
 
 _IMAGE_CACHE = {}
+_IMAGE_BYTES = {}
+_PRINT_DPI = 300
+_PRINT_CACHE = {}
 
 
 def _image(url):
@@ -129,10 +132,51 @@ def _image(url):
         request = urllib.request.Request(url, headers={'User-Agent': 'LayoutPerfect'})
         with urllib.request.urlopen(request, timeout=45) as response:
             data = response.read()
+        _IMAGE_BYTES[url] = data
         reader = ImageReader(io.BytesIO(data))
     except Exception as error:
         print('[illustrated] artwork unavailable: ' + str(error))
     _IMAGE_CACHE[url] = reader
+    return reader
+
+
+def _print_image(url, printed_w, printed_h):
+    """The picture at no more than 300 dpi for the size it prints at.
+
+    Artwork is delivered far larger than print needs, and embedding it as sent
+    makes a proof too heavy to store and to send to a printer.
+    """
+    reader = _image(url)
+    if not reader:
+        return None
+    target_w = max(1, int(printed_w / inch * _PRINT_DPI))
+    target_h = max(1, int(printed_h / inch * _PRINT_DPI))
+    key = (url, target_w, target_h)
+    if key in _PRINT_CACHE:
+        return _PRINT_CACHE[key]
+    try:
+        raw = _IMAGE_BYTES.get(url)
+        if not raw:
+            return reader
+        from PIL import Image as PILImage
+        picture = PILImage.open(io.BytesIO(raw))
+        picture.load()
+        if picture.mode in ('RGBA', 'LA', 'P'):
+            picture = picture.convert('RGBA')
+            flat = PILImage.new('RGB', picture.size, (255, 255, 255))
+            flat.paste(picture, mask=picture.split()[-1])
+            picture = flat
+        elif picture.mode != 'RGB':
+            picture = picture.convert('RGB')
+        if picture.width > target_w or picture.height > target_h:
+            picture.thumbnail((target_w, target_h), PILImage.LANCZOS)
+        buffer = io.BytesIO()
+        picture.save(buffer, format='JPEG', quality=92, optimize=True)
+        reader = ImageReader(io.BytesIO(buffer.getvalue()))
+    except Exception as error:
+        print('[illustrated] artwork resize failed: ' + str(error))
+        reader = _image(url)
+    _PRINT_CACHE[key] = reader
     return reader
 
 
@@ -222,7 +266,7 @@ class Art(Flowable):
         self.paint(self.canv, self.width, self.height)
 
     def paint(self, canvas, box_w, box_h):
-        image = _image(self.url)
+        image = _print_image(self.url, self.printed_width, self.printed_height)
         if image:
             try:
                 left = (box_w - self.printed_width) / 2.0
