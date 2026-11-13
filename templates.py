@@ -621,7 +621,7 @@ ORN_TEMPLATE_DEFAULTS = {
     'narrative': {
         'chapter_opener_style': 'ornamental',
         'chapter_opener_drop': 0.24,
-        'chapter_number_format': 'arabic',
+        'chapter_number_format': 'none',
         'chapter_number_size': 10,
         'chapter_number_color': '#8B7355',
         'chapter_ornament': 'horizontal_rule',
