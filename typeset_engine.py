@@ -2587,34 +2587,45 @@ class BookRenderer(InteriorFeatures):
         # Chapter number
         num_style = tpl.get('chapter_number_style', 'none')
         num_text = format_chapter_number(self.chapter_count, num_style)
+        title_pos = tpl.get('chapter_title_position', 'centered')
+        align_left = title_pos in ('left', 'left_below', 'left_above')
+        # The number always agrees with the title: a left title takes a left
+        # number, a centred title a centred one. Templates that print no title
+        # keep their designed numeral position.
+        num_left = align_left if title_pos != 'none' else num_style in (
+            'large_sans_topleft', 'sans_medium')
+
+        def _draw_num(text, font, size, color):
+            self.c.setFont(font, size)
+            self.c.setFillColor(color)
+            if num_left:
+                self.c.drawString(self._lm(), self.current_y, text)
+            else:
+                self.c.drawCentredString(cx, self.current_y, text)
+
         if num_text:
             num_font = cjk_aware_font(num_text, tpl.get('heading_font', 'GarB'))
             if num_style == 'large_sans_topleft':
                 num_sz = tpl.get('chapter_title_size', 48)
-                self.c.setFont(num_font, num_sz)
-                self.c.setFillColor(C_BODY)
-                self.c.drawString(self._lm(), self.current_y, num_text)
+                _draw_num(num_text, num_font, num_sz, C_BODY)
                 self.current_y -= num_sz + 16
             elif num_style == 'smallcaps_spaced':
-                self._ctxt(self.current_y, num_text, num_font, 11, C_BROWN)
+                _draw_num(num_text, num_font, 11, C_BROWN)
                 self.current_y -= 20
             elif num_style == 'italic_centered':
-                self._ctxt(self.current_y, num_text, 'GarI', 16, C_BROWN)
+                _draw_num(num_text, 'GarI', 16, C_BROWN)
                 self.current_y -= 24
             elif num_style == 'sans_medium':
-                self.c.setFont('SansB', 11)
-                self.c.setFillColor(C_MID)
-                self.c.drawString(self._lm(), self.current_y, num_text)
+                _draw_num(num_text, 'SansB', 11, C_MID)
                 self.current_y -= 22
             elif num_style == 'large_centered':
-                self._ctxt(self.current_y, num_text, 'GarB', 26, C_BROWN)
+                _draw_num(num_text, 'GarB', 26, C_BROWN)
                 self.current_y -= 34
             elif num_style == 'centered_caps':
-                self._ctxt(self.current_y, num_text, 'MonoB', 14, C_BODY)
+                _draw_num(num_text, 'MonoB', 14, C_BODY)
                 self.current_y -= 26
         
         # Chapter title
-        title_pos = tpl.get('chapter_title_position', 'centered')
         title_font = cjk_aware_font(title, tpl.get('chapter_title_font', 'GarB'))
         title_sz = tpl.get('chapter_title_size', CH_TITLE_SZ)
         title_color = self._tpl_color('chapter_title_color', C_BODY)
@@ -2659,7 +2670,8 @@ class BookRenderer(InteriorFeatures):
         sub_sz = tpl.get('subtitle_size', CH_SUB_SZ)
         sub_color = self._tpl_color('subtitle_color', C_BROWN)
         if subtitle and title_pos != 'none':
-            if tpl.get('subtitle_align', 'center') == 'left':
+            sub_align = tpl.get('subtitle_align', 'left' if align_left else 'center')
+            if sub_align == 'left':
                 for sl in self._wrap(subtitle, sub_font, sub_sz, tw):
                     self.c.setFont(sub_font, sub_sz)
                     self.c.setFillColor(sub_color)
