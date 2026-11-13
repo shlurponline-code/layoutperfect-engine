@@ -651,7 +651,6 @@ ORN_TEMPLATE_DEFAULTS = {
         'chapter_ornament': 'horizontal_rule',
         'chapter_ornament_name': 'scroll',
         'chapter_ornament_width': 0.24,
-        'chapter_title_position': 'left',
         'drop_cap_enabled': True,
         'drop_cap_style': 'dropped',
         'drop_cap_lines': 3,
