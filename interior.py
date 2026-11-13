@@ -628,6 +628,11 @@ class InteriorFeatures:
             num_font = e.cjk_aware_font(num_text, num_font)
         title_case = self.icfg('chapter_title_case', None)
         title_pos = str(self.icfg('chapter_title_position', 'centered') or 'centered').lower()
+        # The opener reads as one block: the number, ornament, epigraph and
+        # subtitle share the title's alignment, so a left title never sits
+        # under a centred number, and a centred title never under a left one.
+        align_left = title_pos in ('left', 'left_below', 'left_above')
+        text_x = self._lm() if align_left else cx
         title_lines = []
         if title and title_pos != 'none':
             title_lines = self._wrap(_apply_case(str(title), title_case) if title_case else str(title),
@@ -658,7 +663,10 @@ class InteriorFeatures:
             c.setFont(num_font, num_size)
             c.setFillColor(self.icolor('chapter_number_color', C_MID))
             for i, ln in enumerate(self._wrap(num_text, num_font, num_size, tw)):
-                c.drawCentredString(cx, y - i * num_size * 1.35, ln)
+                if align_left:
+                    c.drawString(self._lm(), y - i * num_size * 1.35, ln)
+                else:
+                    c.drawCentredString(cx, y - i * num_size * 1.35, ln)
             y -= num_size * 1.9
 
         if ornament not in ('none', ''):
@@ -666,7 +674,8 @@ class InteriorFeatures:
             if num_text:
                 y -= max(0.0, extent - 10.0)
             orn_y = y
-            self.draw_chapter_ornament(orn_y, cx, ornament, orn_w)
+            orn_cx = self._lm() + orn_w / 2 if align_left else cx
+            self.draw_chapter_ornament(orn_y, orn_cx, ornament, orn_w)
             # Clear the ornament's own height plus the title's ascent so the
             # ornament never runs through the chapter title.
             drawn_h = float(getattr(self, '_ornament_drawn_h',
@@ -676,7 +685,7 @@ class InteriorFeatures:
 
         if title_lines:
             title_color = self.icolor('chapter_title_color', C_BODY)
-            left = title_pos in ('left', 'left_below', 'left_above')
+            left = align_left
             for ln in title_lines:
                 c.setFont(title_font, title_size)
                 c.setFillColor(title_color)
@@ -693,7 +702,10 @@ class InteriorFeatures:
             for ln in epi_lines:
                 c.setFont(epi_font, epi_size)
                 c.setFillColor(epi_color)
-                c.drawCentredString(cx, y, ln)
+                if align_left:
+                    c.drawString(self._lm(), y, ln)
+                else:
+                    c.drawCentredString(cx, y, ln)
                 y -= epi_size * 1.5
         elif subtitle and title_pos != 'none':
             sub_font = resolve_font(self.icfg('subtitle_font', 'GarI'), 'GarI')
@@ -701,7 +713,10 @@ class InteriorFeatures:
             for ln in self._wrap(str(subtitle), sub_font, sub_size, tw):
                 c.setFont(sub_font, sub_size)
                 c.setFillColor(self.icolor('subtitle_color', C_BROWN))
-                c.drawCentredString(cx, y, ln)
+                if align_left:
+                    c.drawString(self._lm(), y, ln)
+                else:
+                    c.drawCentredString(cx, y, ln)
                 y -= sub_size * 1.6
 
         if self.icfg('chapter_body_same_page', True) in (False, 'false', 'no'):
