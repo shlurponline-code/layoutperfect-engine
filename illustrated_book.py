@@ -331,6 +331,12 @@ class Art(Flowable):
                                 self.doc.words.get('following') or 'artwork to follow')
         canvas.restoreState()
 
+def _chapter_label(doc, number):
+    """The chapter number as a reader expects it: "Kapitel 1", not "Kapitel Eins"."""
+    word = (doc.words or {}).get('chapter') or 'Chapter'
+    return '%s %d' % (word, number)
+
+
 class Opener(Flowable):
     """Chapter opener: label, ornament and chapter title, on a fresh page."""
 
@@ -352,7 +358,7 @@ class Opener(Flowable):
         self.doc.chapter_pages[self.index] = canvas.getPageNumber()
         canvas.setFillColor(C_MUTED)
         canvas.setFont(FONT, 9.2)
-        canvas.drawCentredString(self.width / 2.0, 104, ' '.join(self.label.upper()))
+        canvas.drawCentredString(self.width / 2.0, 104, self.label.upper())
         _ornament(canvas, self.width / 2.0, 84, 92)
         canvas.setFillColor(C_BODY)
         _centred_block(canvas, _wrap(self.title, FONT_B, 18, self.width - 12),
@@ -524,18 +530,19 @@ def _contents(canvas, width, height, entries, heading='Contents'):
     canvas.drawCentredString(width / 2.0, height - 30, heading)
     _ornament(canvas, width / 2.0, height - 50, 90)
     y = height - 90
-    for label, title, page in entries:
+    for number, title, page in entries:
+        # the chapter number, its title and the page: one clean line each
         canvas.setFillColor(C_MUTED)
-        canvas.setFont(FONT, 7.8)
-        canvas.drawString(0, y, ' '.join(str(label).upper()))
+        canvas.setFont(FONT, 9.4)
+        canvas.drawString(0, y, str(number))
         canvas.setFillColor(C_BODY)
         canvas.setFont(FONT, 11)
-        canvas.drawString(0, y - 15, title)
+        canvas.drawString(24, y, title)
         if page:
             canvas.setFillColor(C_MUTED)
             canvas.setFont(FONT, 9.4)
-            canvas.drawRightString(width, y - 15, str(page))
-        y -= 32
+            canvas.drawRightString(width, y, str(page))
+        y -= 22
         if y < 20:
             break
 
@@ -580,7 +587,7 @@ def _story(doc, payload, toc_pages):
             c, w, h, front.get('dedication') or '')))
         story.append(PageBreak())
 
-    entries = [(chapter.get('label') or 'CHAPTER', chapter.get('title') or '',
+    entries = [(index + 1, chapter.get('title') or '',
                 (toc_pages or {}).get(index))
                for index, chapter in enumerate(chapters)]
     story.append(FrontPage(doc, lambda c, w, h: _contents(
@@ -588,7 +595,7 @@ def _story(doc, payload, toc_pages):
 
     for index, chapter in enumerate(chapters):
         story.append(PageBreak())
-        story.append(Opener(doc, index, chapter.get('label') or 'CHAPTER',
+        story.append(Opener(doc, index, _chapter_label(doc, index + 1),
                             chapter.get('title') or ''))
         paragraphs = 0
         for segment in (chapter.get('segments') or []):
