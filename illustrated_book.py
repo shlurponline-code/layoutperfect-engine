@@ -656,6 +656,40 @@ def _render(payload, trim_width, trim_height, toc_pages):
     return buffer.getvalue(), dict(doc.chapter_pages), doc.page, doc
 
 
+def _print_check(doc):
+    """Where every picture sits against the trim, measured in inches.
+
+    KDP rejects a picture that crosses the margin unless the whole sheet is
+    bled, and this interior is trim-sized, so each picture must clear it.
+    """
+    page_w, page_h = doc.pagesize
+    clears = []
+    for art in doc.arts:
+        left = doc.leftMargin + (doc.width - art.printed_width) / 2.0
+        bottom = doc.bottomMargin + (art.height - art.printed_height) / 2.0
+        clears.append(min(left, bottom,
+                          page_w - (left + art.printed_width),
+                          page_h - (bottom + art.printed_height)) / inch)
+    low = [art for art in doc.arts if art.pixels and art.dpi and art.dpi < MIN_DPI]
+    outside = [value for value in clears if value <= 0.0]
+    best_dpi = [int(round(art.dpi)) for art in doc.arts if art.dpi]
+    return {
+        'ok': not outside and not low,
+        'page_size_inches': '%s x %s' % (round(page_w / inch, 2),
+                                         round(page_h / inch, 2)),
+        'margins_inches': {
+            'top': round(doc.topMargin / inch, 2),
+            'bottom': round(doc.bottomMargin / inch, 2),
+            'side': round(doc.leftMargin / inch, 2),
+        },
+        'pictures': len(doc.arts),
+        'pictures_outside_margins': len(outside),
+        'min_clearance_inches': round(min(clears), 2) if clears else 0,
+        'low_resolution_pictures': len(low),
+        'lowest_dpi': min(best_dpi) if best_dpi else 0,
+    }
+
+
 def _image_report(doc):
     """Every picture, its placement, printed width and printed resolution."""
     rows = []
