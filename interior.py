@@ -632,7 +632,6 @@ class InteriorFeatures:
         # subtitle share the title's alignment, so a left title never sits
         # under a centred number, and a centred title never under a left one.
         align_left = title_pos in ('left', 'left_below', 'left_above')
-        text_x = self._lm() if align_left else cx
         title_lines = []
         if title and title_pos != 'none':
             title_lines = self._wrap(_apply_case(str(title), title_case) if title_case else str(title),
