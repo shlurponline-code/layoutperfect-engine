@@ -767,6 +767,7 @@ def assemble_illustrated_book(payload):
         'filename': filename,
         'pdf_base64': base64.b64encode(pdf_bytes).decode('utf-8'),
         'image_report': _image_report(doc),
+        'print_check': _print_check(doc),
         'message': 'Illustrated interior built: %d pages at %s x %s inches'
                    % (page_count, trim_width, trim_height),
     }
