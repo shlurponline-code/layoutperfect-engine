@@ -255,6 +255,9 @@ class Art(Flowable):
             printed_w, printed_h = box_w, box_w / aspect
         else:
             printed_w, printed_h = box_h * aspect, box_h
+        # Belt and braces: no picture may ever print outside the text block.
+        printed_w = min(printed_w, text_w)
+        printed_h = min(printed_h, text_h)
         self.printed_width = printed_w
         self.printed_height = printed_h
         self.width = text_w
