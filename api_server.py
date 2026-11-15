@@ -93,6 +93,9 @@ class TypesetRequest(BaseModel):
     interior: dict = Field(default_factory=dict)
     # Back-matter links page (trade, AuthorCentral, BookClub2K, catalogue)
     back_matter: dict = Field(default_factory=dict)
+    # One printed page for a retail, travel or club partner: a gift plate at
+    # the front, or a promotional page after the back matter.
+    partner_page: dict = Field(default_factory=dict)
 
 
 class TypesetResponse(BaseModel):
@@ -462,6 +465,16 @@ def typeset(req: TypesetRequest):
                 verify_font_embedding(output_path)
         except Exception as back_matter_error:
             print('Back-matter page skipped: ' + str(back_matter_error))
+
+        # Partner page — one page for a retail, travel or club partner. A front
+        # plate is merged ahead of the book, a promo after the back matter.
+        try:
+            if req.partner_page and req.partner_page.get('enabled'):
+                from partner_page import apply_partner_page
+                apply_partner_page(output_path, req.trim_width, req.trim_height, req.partner_page, req.language)
+                verify_font_embedding(output_path)
+        except Exception as partner_error:
+            print('Partner page skipped: ' + str(partner_error))
 
         # Count actual pages from the generated PDF
         from pypdf import PdfReader
