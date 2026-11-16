@@ -749,6 +749,37 @@ def illustrated_typeset_route(req: IllustratedRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Illustrated typeset failed: " + str(e))
 
+class GuideRequest(BaseModel):
+    api_key: str
+    title: str = Field(default="Untitled")
+    subtitle: str = Field(default="")
+    author: str = Field(default="")
+    publisher: str = Field(default="D&H Publishing International Ltd")
+    isbn: str = Field(default="")
+    language: str = Field(default="en_GB")
+    market: str = Field(default="kdp")
+    trim_width: float = Field(default=6.0)
+    trim_height: float = Field(default=9.0)
+    paper_type: str = Field(default="cream")
+    spine_per_page: float = Field(default=0.002252)
+    margins: dict = Field(default_factory=dict)
+    front_matter: dict = Field(default_factory=dict)
+    pages: list = Field(default_factory=list)
+    back_matter: dict = Field(default_factory=dict)
+
+
+@app.post("/guide/typeset")
+def guide_typeset_route(req: GuideRequest):
+    """Touring guide interior, from an explicit page list."""
+    check_auth(req.api_key)
+    payload = req.model_dump() if hasattr(req, "model_dump") else req.dict()
+    try:
+        from guide_book import assemble_touring_guide
+        return assemble_touring_guide(payload)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Guide typeset failed: " + str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
