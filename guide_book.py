@@ -9,6 +9,7 @@ appended after the interior.
 
 import base64
 import io
+import re
 import urllib.request
 
 from reportlab.lib.colors import HexColor
@@ -243,6 +244,22 @@ def _wrapped(canvas, text, base, size, leading, color, x, top, width, align="lef
     return y
 
 
+def _paragraphs(text):
+    """The author's blank lines are paragraph breaks; single newlines are not."""
+    raw = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+    return [block.strip() for block in re.split(r"\n[ \t]*\n", raw) if block.strip()]
+
+
+def _prose(canvas, text, base, size, leading, color, x, top, width, gap=7.0, align="left"):
+    """Sets one paragraph after another, with a break between them."""
+    y = top
+    for index, block in enumerate(_paragraphs(text)):
+        if index:
+            y -= gap
+        y = _wrapped(canvas, block, base, size, leading, color, x, y, width, align)
+    return y
+
+
 def _folio(canvas, number, box, origin_y):
     if not number:
         return
@@ -289,6 +306,19 @@ def _plate(canvas, spec, sheet_w, sheet_h, box, url, report):
         for line in lines:
             _line(canvas, line, "SanI", size, HexColor("#F6F1E6"), left, y)
             y -= 14.0
+    elif caption:
+        # A caption the author asked for below the plate still has to print, so
+        # it sits on a paper strip inside the bottom margin, clear of the picture.
+        left, bottom, width_box, _ = box
+        size = 9.6
+        lines = _wrap(caption, size, width_box * 0.86, "SanI")[:4]
+        strip_h = len(lines) * 12.6 + 20.0
+        canvas.setFillColor(HexColor("#F7F3EA"))
+        canvas.rect(left - 10, bottom - 9, width_box + 20, strip_h + 9, stroke=0, fill=1)
+        y = bottom + strip_h - 15
+        for line in lines:
+            _line(canvas, line, "SanI", size, C_BODY, left, y)
+            y -= 12.6
 
 
 def _image_text(canvas, spec, box, margins, origin_y, sheet_h):
@@ -319,7 +349,25 @@ def _image_text(canvas, spec, box, margins, origin_y, sheet_h):
     if heading:
         y = _wrapped(canvas, heading, "SanB", 16, 20, C_INK, text_x, y, text_w) - 8
     body = (spec.get("body") or "").strip()
-    return _wrapped(canvas, body, "San", 10.2, 14.6, C_BODY, text_x, y, text_w)
+    return _prose(canvas, body, "San", 10.2, 14.6, C_BODY, text_x, y, text_w, gap=7.0)
+
+
+def _spread_caption(canvas, text, sheet_w, sheet_h):
+    """A spread's caption belongs to its first page, over the picture's foot."""
+    if not text:
+        return
+    size = 10.5
+    lines = _wrap(text, size, sheet_w * 0.62, "SanI")[:3]
+    height = len(lines) * 13.6 + 18.0
+    margin = 34.0
+    canvas.setFillColor(HexColor("#0E1B24"))
+    canvas.setFillAlpha(0.58)
+    canvas.rect(margin - 12, margin - 10, sheet_w * 0.62 + 24, height, stroke=0, fill=1)
+    canvas.setFillAlpha(1)
+    y = margin - 10 + height - 16
+    for line in lines:
+        _line(canvas, line, "SanI", size, HexColor("#F6F1E6"), margin, y)
+        y -= 13.6
 
 
 def _draw_or_placeholder(canvas, reader, x, y, w, h):
@@ -349,7 +397,7 @@ def _text_page(canvas, spec, box):
     if standfirst:
         y = _wrapped(canvas, standfirst, "SanI", 11.4, 16.4, C_MUTED, left, y, width) - 8
     body = (spec.get("body") or "").strip()
-    return _wrapped(canvas, body, "San", 10.4, 15.2, C_BODY, left, y, width)
+    return _prose(canvas, body, "San", 10.4, 15.2, C_BODY, left, y, width, gap=8.0)
 
 
 def _caption_page(canvas, spec, box):
@@ -362,7 +410,7 @@ def _caption_page(canvas, spec, box):
     if heading:
         y = _wrapped(canvas, heading, "SanB", 13, 17, C_INK, left, y, width) - 6
     caption = (spec.get("caption") or "").strip()
-    return _wrapped(canvas, caption, "SanI", 10.2, 14.6, C_BODY, left, y, width)
+    return _prose(canvas, caption, "SanI", 10.2, 14.6, C_BODY, left, y, width, gap=6.0)
 
 
 def _divider(canvas, spec, sheet_w, sheet_h, box):
@@ -397,7 +445,7 @@ def _divider(canvas, spec, sheet_w, sheet_h, box):
         top = y - 8
     body = (spec.get("body") or "").strip()
     if body:
-        _wrapped(canvas, body, "SanI", 11.2, 16, ink, centre, top, width * 0.84, "centre")
+        _prose(canvas, body, "SanI", 11.2, 16, ink, centre, top, width * 0.84, gap=7.0, align="centre")
 
 
 def _front_half_title(canvas, payload, box):
@@ -808,6 +856,8 @@ def assemble_touring_guide(payload):
                     row.update({"width_in": round(total_w / 72.0, 2), "height_in": round(sheet_h / 72.0, 2)})
             elif len(images) > 1:
                 _draw_or_placeholder(canvas, _reader(images[1], 1600), 0, 0, sheet_w, sheet_h)
+            if sheet["kind"] == "spread":
+                _spread_caption(canvas, (spec.get("caption") or "").strip(), sheet_w, sheet_h)
             report_rows.append(row)
             continue
         elif kind == "spread_second":
