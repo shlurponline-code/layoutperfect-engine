@@ -652,16 +652,16 @@ def _plan(payload, chunks):
         sheets.append({"kind": "half_title"})
         sheets.append({"kind": "blank"})
         sheets.append({"kind": "title"})
-        sheets.append({"kind": "blank"})
     if include_copyright:
-        sheets.append({"kind": "copyright"})
-        if include_contents:
+        # Copyright sits on a verso, as the front matter convention expects.
+        if sheets and len(sheets) % 2 == 0:
             sheets.append({"kind": "blank"})
+        sheets.append({"kind": "copyright"})
     if include_contents:
-        sheets.append({"kind": "contents"})
         if len(sheets) % 2 == 1:
             sheets.append({"kind": "blank"})
-    elif len(sheets) % 2 == 1:
+        sheets.append({"kind": "contents"})
+    if len(sheets) % 2 == 1:
         sheets.append({"kind": "blank"})
 
     folio = 0
