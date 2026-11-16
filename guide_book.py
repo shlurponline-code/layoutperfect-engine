@@ -496,33 +496,69 @@ def _front_contents(canvas, payload, box, strings, entries):
         y -= 12
 
 
-def _back_page(canvas, guide, box, strings, back, origin_y):
+def _back_items(guide, back, strings, width):
+    """Everything the back page prints, in order, as measurable items."""
+    blocks = build_blocks(back, guide.get("language") or "en_GB")
+    items = [
+        {"kind": "link", "header": header, "body": body, "url": url}
+        for (header, body), url in blocks
+    ]
+    other = back.get("other_books") or {}
+    rows = (other.get("books") or []) if other.get("enabled") else []
+    if rows:
+        items.append({"kind": "other", "rows": rows, "header": strings["other_books"]})
+    return items
+
+
+def _back_item_height(item, width, qr_size):
+    if item["kind"] == "other":
+        return 42 + len(item["rows"]) * 30
+    lines = _wrap(item["body"], 8.6, width * 0.72, "SanI")
+    return 15 + len(lines) * 12.4 + 9 + max(qr_size + 14, 32.0) + 18
+
+
+def _back_chunks(items, width, capacity, reserve, qr_size):
+    """Split the back matter over as many pages as it needs, barcode last."""
+    chunks = []
+    start = 0
+    while start < len(items):
+        chunk, used = [], 0.0
+        for item in items[start:]:
+            height = _back_item_height(item, width, qr_size)
+            if chunk and used + height > capacity:
+                break
+            chunk.append(item)
+            used += height
+        chunks.append({"items": chunk, "height": used})
+        start += len(chunk)
+    # The barcode and colophon sit at the foot of the final page.
+    while len(chunks) > 1 and chunks[-1]["height"] + reserve > capacity and len(chunks[-1]["items"]) > 1:
+        moved = chunks[-1]["items"].pop()
+        height = _back_item_height(moved, width, qr_size)
+        chunks[-1]["height"] -= height
+        chunks.append({"items": [moved], "height": height})
+    return chunks
+
+
+def _back_page(canvas, guide, box, strings, back, origin_y, chunk, first, last):
     """The house back page: links, QR codes, other books, barcode."""
     left, bottom, width, height = box
     centre = left + width / 2.0
-    blocks = build_blocks(back, guide.get("language") or "en_GB")
     barcode = isbn13(back.get("isbn")) if back.get("show_barcode", True) else ""
     qr_size = (16 * 72 / 25.4) if back.get("show_qr") else 0.0
 
-    logo = _reader(back.get("logo_url"), 900) if back.get("logo_url") else None
     top = bottom + height - 6
-    if logo is not None:
-        _draw_fit(canvas, logo, centre - 0.9 * inch, top - 0.62 * inch, 1.8 * inch, 0.62 * inch)
-        top -= 0.62 * inch + 12
-    else:
-        brand = "D&H PUBLISHING INTERNATIONAL"
-        _draw_tracked_centre(canvas, brand, _font(brand, "SanB"), 6.6, 2.6, C_MUTED, top, centre)
-        top -= 12
+    if first:
+        logo = _reader(back.get("logo_url"), 900) if back.get("logo_url") else None
+        if logo is not None:
+            _draw_fit(canvas, logo, centre - 0.9 * inch, top - 0.62 * inch, 1.8 * inch, 0.62 * inch)
+            top -= 0.62 * inch + 12
+        else:
+            brand = "D&H PUBLISHING INTERNATIONAL"
+            _draw_tracked_centre(canvas, brand, _font(brand, "SanB"), 6.6, 2.6, C_MUTED, top, centre)
+            top -= 12
     _ornament(canvas, centre, top, 40)
     top -= 30
-
-    footer_y = origin_y + 0.42 * inch
-    barcode_w = min(width * 0.86, 3.05 * inch)
-    barcode_h = 0.56 * inch
-    other = back.get("other_books") or {}
-    other_rows = other.get("books") or [] if other.get("enabled") else []
-    barcode_floor = footer_y + 26 + ((barcode_h + 26) if barcode else 0)
-    other_floor = barcode_floor + (len(other_rows) * 30 + 34 if other_rows else 0)
 
     def link_box(cx, y_top, url, qr):
         label = _display_url(url)
@@ -551,50 +587,58 @@ def _back_page(canvas, guide, box, strings, back, origin_y):
         canvas.drawString(x, cy - 8.6, label)
         return box_bottom
 
-    y = top
-    for (header, body), url in blocks:
+    for item in (chunk or {}).get("items", []):
+        if item["kind"] == "other":
+            _draw_tracked_centre(
+                canvas, item["header"], _font(item["header"], "SanB"), 8.2, 1.5, C_INK, top, centre
+            )
+            top -= 22
+            for row in item["rows"]:
+                title = (row.get("title") or "").strip()
+                meta = " · ".join(
+                    part
+                    for part in [
+                        (row.get("subtitle") or "").strip(),
+                        ("ISBN " + row["isbn"]) if row.get("isbn") else "",
+                    ]
+                    if part
+                )
+                _line(canvas, title, "SanB", 9.4, C_INK, centre, top, "centre")
+                top -= 12
+                if meta:
+                    _line(canvas, meta, "SanI", 8.2, C_MUTED, centre, top, "centre")
+                    top -= 12
+                top -= 6
+            continue
+
+        header, body, url = item["header"], item["body"], item["url"]
         lines = _wrap(body, 8.6, width * 0.72, "SanI")
-        needed = 9.2 + 8 + len(lines) * 12.4 + 10 + max(qr_size + 14, 32.0)
-        if y - needed < other_floor:
-            return  # keep the page clean; the report flags the overflow
-        _draw_tracked_centre(canvas, header, _font(header, "SanB"), 9.2, 1.5, C_INK, y, centre)
-        y -= 15
+        _draw_tracked_centre(canvas, header, _font(header, "SanB"), 9.2, 1.5, C_INK, top, centre)
+        top -= 15
         for line in lines:
-            _line(canvas, line, "SanI", 8.6, C_BODY, centre, y, "centre")
-            y -= 12.4
-        y -= 9
-        y = link_box(centre, y, url, _qr_reader(_full_url(url)) if qr_size else None) - 18
+            _line(canvas, line, "SanI", 8.6, C_BODY, centre, top, "centre")
+            top -= 12.4
+        top -= 9
+        top = link_box(centre, top, url, _qr_reader(_full_url(url)) if qr_size else None) - 16
+        _ornament(canvas, centre, top + 8, 24)
 
-    if other_rows:
-        if y - 40 < other_floor:
-            y = other_floor + 30
-        _ornament(canvas, centre, y + 4, 24)
-        _draw_tracked_centre(
-            canvas, strings["other_books"], _font(strings["other_books"], "SanB"), 8.2, 1.5, C_INK, y - 12, centre
-        )
-        y -= 34
-        for row in other_rows:
-            title = (row.get("title") or "").strip()
-            meta = " · ".join(part for part in [(row.get("subtitle") or "").strip(), ("ISBN " + row["isbn"]) if row.get("isbn") else ""] if part)
-            _line(canvas, title, "SanB", 9.4, C_INK, centre, y, "centre")
-            y -= 12
-            if meta:
-                _line(canvas, meta, "SanI", 8.2, C_MUTED, centre, y, "centre")
-                y -= 12
-            y -= 6
+    if not last:
+        return
 
-    colophon_y = footer_y
+    footer_y = origin_y + 0.42 * inch
+    barcode_w = min(width * 0.86, 3.05 * inch)
+    barcode_h = 0.56 * inch
     canvas.setStrokeColor(C_GOLD_SOFT)
     canvas.setLineWidth(0.5)
-    canvas.line(centre - 34, colophon_y + 14, centre + 34, colophon_y + 14)
-    _diamond(canvas, centre, colophon_y + 14, 1.8, C_GOLD)
+    canvas.line(centre - 34, footer_y + 14, centre + 34, footer_y + 14)
+    _diamond(canvas, centre, footer_y + 14, 1.8, C_GOLD)
     imprint = "D&H PUBLISHING INTERNATIONAL LTD"
-    _draw_tracked_centre(canvas, imprint, _font(imprint, "SanB"), 5.6, 1.7, C_MUTED, colophon_y, centre)
+    _draw_tracked_centre(canvas, imprint, _font(imprint, "SanB"), 5.6, 1.7, C_MUTED, footer_y, centre)
     if barcode:
         draw_barcode(canvas, barcode, centre, footer_y + 26, barcode_w, barcode_h)
 
 
-def _plan(payload):
+def _plan(payload, chunks):
     """Every sheet, in order: front matter, the pages, the back page."""
     pages = payload.get("pages") or []
     front = payload.get("front_matter") or {}
@@ -634,10 +678,18 @@ def _plan(payload):
         if span == 2:
             sheets.append({"kind": "spread_second", "spec": page})
 
-    if (payload.get("back_matter") or {}).get("enabled", True):
+    if (payload.get("back_matter") or {}).get("enabled", True) and chunks:
         if len(sheets) % 2 == 0:
             sheets.append({"kind": "blank"})
-        sheets.append({"kind": "back"})
+        for position, chunk in enumerate(chunks):
+            sheets.append(
+                {
+                    "kind": "back",
+                    "chunk": chunk,
+                    "first": position == 0,
+                    "last": position == len(chunks) - 1,
+                }
+            )
     return sheets
 
 
@@ -656,7 +708,18 @@ def assemble_touring_guide(payload):
     language = payload.get("language") or "en_GB"
     strings = STRINGS[_language(language)]
 
-    sheets = _plan(payload)
+    back = dict(payload.get("back_matter") or {})
+    qr_point = (16 * 72 / 25.4) if back.get("show_qr") else 0.0
+    box_width = (trim_w - margins["inside"] - margins["outside"]) * inch
+    capacity = (trim_h - margins["top"] - margins["bottom"]) * inch - 70
+    back_items = _back_items(payload, back, strings, box_width)
+    back_chunks = (
+        _back_chunks(back_items, box_width, capacity, 96, qr_point)
+        if back.get("enabled", True)
+        else []
+    )
+
+    sheets = _plan(payload, back_chunks)
 
     # Pass one: where every sheet falls, so the contents page can carry folios.
     entries = []
@@ -705,10 +768,20 @@ def assemble_touring_guide(payload):
             _front_contents(canvas, payload, box, strings, entries)
             continue
         if kind == "back":
-            back = dict(payload.get("back_matter") or {})
-            if not back.get("isbn"):
-                back["isbn"] = payload.get("isbn") or ""
-            _back_page(canvas, payload, box, strings, back, origin_y)
+            back_sheet = dict(back)
+            if not back_sheet.get("isbn"):
+                back_sheet["isbn"] = payload.get("isbn") or ""
+            _back_page(
+                canvas,
+                payload,
+                box,
+                strings,
+                back_sheet,
+                origin_y,
+                sheet.get("chunk"),
+                sheet.get("first"),
+                sheet.get("last"),
+            )
             continue
 
         spec = sheet.get("spec") or {}
