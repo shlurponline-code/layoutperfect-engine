@@ -87,11 +87,33 @@ PRESS_STRINGS = {
 OTHER_BOOKS_STRINGS = {
     "en": "OTHER BOOKS BY THIS AUTHOR",
     "fr": "AUTRES LIVRES DE CET AUTEUR",
-    "de": "WEITERE BUECHER DIESES AUTORS",
+    "de": "WEITERE BÜCHER DIESES AUTORS",
     "it": "ALTRI LIBRI DI QUESTO AUTORE",
     "es": "OTROS LIBROS DE ESTE AUTOR",
     "nl": "ANDERE BOEKEN VAN DEZE AUTEUR",
     "ja": "\u8457\u8005\u306e\u4ed6\u306e\u672c",
+}
+
+
+ISBN_LABEL = {
+    "en": "ISBN",
+    "fr": "ISBN",
+    "de": "ISBN",
+    "it": "ISBN",
+    "es": "ISBN",
+    "nl": "ISBN",
+    "ja": "ISBN",
+}
+
+
+VISIT_STRINGS = {
+    "en": "VISIT",
+    "fr": "VISITEZ",
+    "de": "BESUCHEN",
+    "it": "VISITA",
+    "es": "VISITE",
+    "nl": "BEZOEK",
+    "ja": "\u30a2\u30af\u30bb\u30b9",
 }
 
 
@@ -262,8 +284,8 @@ def _fit(text, font, size, max_width):
     return value.rstrip() + "..."
 
 
-def other_books_rows(cfg):
-    """The titles the author listed by hand, ready to print."""
+def other_books_rows(cfg, language="en_GB"):
+    """The titles the author listed by hand, ready to print, in the book's language."""
     other = (cfg or {}).get("other_books") or {}
     if not other.get("enabled"):
         return []
@@ -274,7 +296,8 @@ def other_books_rows(cfg):
             continue
         subtitle = str(book.get("subtitle") or "").strip()
         isbn = str(book.get("isbn") or "").strip()
-        meta = " · ".join(part for part in [subtitle, ("ISBN " + isbn) if isbn else ""] if part)
+        label = ISBN_LABEL[_language(language)]
+        meta = " · ".join(part for part in [subtitle, (label + " " + isbn) if isbn else ""] if part)
         rows.append({"title": title, "meta": meta})
     return rows[:8]
 
@@ -283,7 +306,7 @@ def append_back_matter(pdf_path, trim_width, trim_height, cfg=None, language="en
     """Append the back-matter links page, keeping it on a recto."""
     cfg = cfg or {}
     blocks = build_blocks(cfg, language)
-    rows = other_books_rows(cfg)
+    rows = other_books_rows(cfg, language)
     other_heading = OTHER_BOOKS_STRINGS[_language(language)]
     barcode = isbn13(cfg.get("isbn")) if cfg.get("show_barcode", True) else ""
     if not blocks and not barcode and not rows:
@@ -352,7 +375,7 @@ def append_back_matter(pdf_path, trim_width, trim_height, cfg=None, language="en
             c.drawImage(qr, x, bottom + (box_h - qr_size) / 2.0, width=qr_size, height=qr_size, mask="auto")
             x += qr_size + gap
         cy = bottom + box_h / 2.0
-        caption = "VISIT"
+        caption = VISIT_STRINGS[_language(language)]
         _draw_tracked(c, caption, _font(caption, "SanB"), 5.6, 1.5, C_GOLD, x, cy + 2.4)
         c.setFont(font, size)
         c.setFillColor(C_INK)
