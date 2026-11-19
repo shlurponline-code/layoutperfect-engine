@@ -84,6 +84,17 @@ PRESS_STRINGS = {
 }
 
 
+OTHER_BOOKS_STRINGS = {
+    "en": "OTHER BOOKS BY THIS AUTHOR",
+    "fr": "AUTRES LIVRES DE CET AUTEUR",
+    "de": "WEITERE BUECHER DIESES AUTORS",
+    "it": "ALTRI LIBRI DI QUESTO AUTORE",
+    "es": "OTROS LIBROS DE ESTE AUTOR",
+    "nl": "ANDERE BOEKEN VAN DEZE AUTEUR",
+    "ja": "\u8457\u8005\u306e\u4ed6\u306e\u672c",
+}
+
+
 def _language(language):
     base = (language or "en").split("_")[0].split("-")[0].lower()
     return base if base in STRINGS else "en"
@@ -241,12 +252,41 @@ def _draw_tracked_centre(c, text, font, size, track, color, y, center):
     _draw_tracked(c, text, font, size, track, color, x, y)
 
 
+def _fit(text, font, size, max_width):
+    """A line shortened to fit the text block, so a long title never overruns."""
+    value = str(text or "")
+    if not value or pdfmetrics.stringWidth(value, font, size) <= max_width:
+        return value
+    while value and pdfmetrics.stringWidth(value + "...", font, size) > max_width:
+        value = value[:-1]
+    return value.rstrip() + "..."
+
+
+def other_books_rows(cfg):
+    """The titles the author listed by hand, ready to print."""
+    other = (cfg or {}).get("other_books") or {}
+    if not other.get("enabled"):
+        return []
+    rows = []
+    for book in other.get("books") or []:
+        title = str((book or {}).get("title") or "").strip()
+        if not title:
+            continue
+        subtitle = str(book.get("subtitle") or "").strip()
+        isbn = str(book.get("isbn") or "").strip()
+        meta = " · ".join(part for part in [subtitle, ("ISBN " + isbn) if isbn else ""] if part)
+        rows.append({"title": title, "meta": meta})
+    return rows[:8]
+
+
 def append_back_matter(pdf_path, trim_width, trim_height, cfg=None, language="en_GB"):
     """Append the back-matter links page, keeping it on a recto."""
     cfg = cfg or {}
     blocks = build_blocks(cfg, language)
+    rows = other_books_rows(cfg)
+    other_heading = OTHER_BOOKS_STRINGS[_language(language)]
     barcode = isbn13(cfg.get("isbn")) if cfg.get("show_barcode", True) else ""
-    if not blocks and not barcode:
+    if not blocks and not barcode and not rows:
         return None
 
     _register_fonts()
@@ -261,6 +301,8 @@ def append_back_matter(pdf_path, trim_width, trim_height, cfg=None, language="en
     body_size = 8.6
     leading = body_size + 3.8
     box_h = max(qr_size + 14, 32.0)
+    row_title_size = 9.6
+    row_meta_size = 8.2
 
     side_path = pdf_path.replace(".pdf", "_backmatter.pdf")
     c = cv.Canvas(side_path, pagesize=(page_w, page_h))
@@ -323,13 +365,22 @@ def append_back_matter(pdf_path, trim_width, trim_height, cfg=None, language="en
         height = header_size + 8 + len(lines) * leading + 10 + box_h
         measured.append((height, lines))
 
+    if rows:
+        other_height = header_size + 10
+        for row in rows:
+            other_height += row_title_size + 4
+            if row["meta"]:
+                other_height += row_meta_size + 3.5
+            other_height += 7.0
+        measured.append((other_height, None))
+
     gap = 24.0
-    total = sum(item[0] for item in measured) + gap * (len(blocks) - 1)
+    total = sum(item[0] for item in measured) + gap * (len(measured) - 1)
     available = block_top - floor_y
     slack = available - total
     start = block_top
     if slack > 0:
-        gap += min(slack / max(len(blocks), 1), 44)
+        gap += min(slack / max(len(measured), 1), 44)
         start = block_top - min(slack * 0.3, 76)
 
     state = {"started": False}
@@ -346,10 +397,8 @@ def append_back_matter(pdf_path, trim_width, trim_height, cfg=None, language="en
     start_page()
 
     y = start
-    for index, block in enumerate(blocks):
-        (header, body), url = block[0], block[1]
-        height, lines = measured[index]
-        qr = _qr_reader(_full_url(url)) if qr_size else None
+    for index, item in enumerate(measured):
+        height, lines = item
         if index:
             if y - height < floor_y:
                 start_page()
@@ -357,15 +406,35 @@ def append_back_matter(pdf_path, trim_width, trim_height, cfg=None, language="en
             else:
                 _ornament(c, page_w / 2, y + gap / 2.0 - 3, 24)
                 y -= gap
-        _draw_tracked_centre(c, header, _font(header, "SanB"), header_size, 1.5, C_INK, y, page_w / 2)
-        y -= header_size + 6
-        for line in lines:
-            c.setFont(_font(line, "SanI"), body_size)
-            c.setFillColor(C_BODY)
-            c.drawCentredString(page_w / 2, y, line)
-            y -= leading
-        y -= 9
-        y = link_box(page_w / 2, y, url, qr)
+        if index < len(blocks):
+            (header, body), url = blocks[index][0], blocks[index][1]
+            qr = _qr_reader(_full_url(url)) if qr_size else None
+            _draw_tracked_centre(c, header, _font(header, "SanB"), header_size, 1.5, C_INK, y, page_w / 2)
+            y -= header_size + 6
+            for line in lines:
+                c.setFont(_font(line, "SanI"), body_size)
+                c.setFillColor(C_BODY)
+                c.drawCentredString(page_w / 2, y, line)
+                y -= leading
+            y -= 9
+            y = link_box(page_w / 2, y, url, qr)
+            continue
+        # Other books by this author: a heading, then one centred entry each.
+        _draw_tracked_centre(c, other_heading, _font(other_heading, "SanB"), header_size, 1.5, C_INK, y, page_w / 2)
+        y -= header_size + 10
+        for row in rows:
+            title_font = _font(row["title"], "SanB")
+            c.setFont(title_font, row_title_size)
+            c.setFillColor(C_INK)
+            c.drawCentredString(page_w / 2, y, _fit(row["title"], title_font, row_title_size, text_w))
+            y -= row_title_size + 4
+            if row["meta"]:
+                meta_font = _font(row["meta"], "SanI")
+                c.setFont(meta_font, row_meta_size)
+                c.setFillColor(C_MUTED)
+                c.drawCentredString(page_w / 2, y, _fit(row["meta"], meta_font, row_meta_size, text_w))
+                y -= row_meta_size + 3.5
+            y -= 7.0
 
     c.save()
 
